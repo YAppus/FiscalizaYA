@@ -32,9 +32,9 @@ async def require_refresh_user(
     try:
         payload = decode_refresh_token(token)
     except jwt.PyJWTError as exc:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication failed") from exc
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Falha na autenticacao") from exc
 
     user = await get_user_by_id(session, payload.get("sub"))
     if not user:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication failed")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Falha na autenticacao")
     return user
