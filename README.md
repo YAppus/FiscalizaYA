@@ -1,4 +1,8 @@
-# FiscaTeste Starter
+# FiscalizaYA
+
+Sistema de Controle de Ocorrencias Municipais.
+
+## Visao Geral
 
 Base full stack com:
 
