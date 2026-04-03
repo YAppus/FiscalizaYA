@@ -1,0 +1,33 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+
+# Git / backups
+snapshots/
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/*.tsbuildinfo
+
+# Backend
+backend/.venv/
+backend/__pycache__/
+backend/**/*.pyc
+backend/**/__pycache__/
+backend/.pytest_cache/
+backend/.mypy_cache/
+
+# Local env
+.env
+.env.*
+!.env.example
+backend/.env
+frontend/.env
+
+# Logs and temporary files
+*.log
+*.out
+*.err
+backend/*.db
