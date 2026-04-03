@@ -139,7 +139,7 @@ async def _register_status_history(
     new_status: str,
     changed_by_user_id: str | None,
     note: str | None = None,
-) -> None:
+    ) -> None:
     session.add(
         History(
             occurrence=occurrence,
@@ -149,6 +149,29 @@ async def _register_status_history(
             note=note,
         )
     )
+
+
+def _build_description_change_note(previous_description: str, new_description: str) -> str:
+    base_note = "Descricao alterada"
+    detail = f" de '{previous_description}' para '{new_description}'"
+    max_length = 255
+    if len(base_note) + len(detail) <= max_length:
+        return f"{base_note}{detail}"
+    return base_note
+
+
+def _assert_description_update_allowed(current_status: str) -> None:
+    blocked_statuses = {
+        OccurrenceStatus.EM_ANDAMENTO.value,
+        OccurrenceStatus.RESOLVIDA.value,
+        OccurrenceStatus.FECHADA.value,
+        OccurrenceStatus.CANCELADA.value,
+    }
+    if current_status in blocked_statuses:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Nao e permitido alterar a descricao neste status da ocorrencia",
+        )
 
 
 def _is_terminal_status(status_value: str) -> bool:
@@ -221,6 +244,11 @@ async def update_occurrence(session: AsyncSession, entity: Occurrence, payload: 
 
     previous_status = entity.status
     next_status = data.get("status", previous_status)
+    previous_description = entity.description
+
+    if "description" in data and data["description"] != previous_description:
+        _assert_description_update_allowed(previous_status)
+
     _assert_status_transition(previous_status, next_status)
 
     if "status" in data:
@@ -235,6 +263,16 @@ async def update_occurrence(session: AsyncSession, entity: Occurrence, payload: 
 
     for field, value in data.items():
         setattr(entity, field, value)
+
+    if "description" in data and data["description"] != previous_description:
+        await _register_status_history(
+            session,
+            entity,
+            previous_status,
+            previous_status,
+            current_user.id if current_user else None,
+            _build_description_change_note(previous_description, data["description"]),
+        )
 
     if next_status != previous_status:
         await _register_status_history(session, entity, previous_status, next_status, current_user.id if current_user else None)
