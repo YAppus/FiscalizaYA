@@ -28,6 +28,11 @@ class HistoryUpdate(BaseModel):
     note: str | None = Field(default=None, max_length=255)
     changed_by_user_id: str | None = None
 
+    @field_validator("previous_status", "new_status", "note")
+    @classmethod
+    def sanitize_strings(cls, value: str | None) -> str | None:
+        return sanitize_text(value) if value else value
+
 
 class HistoryResponse(HistoryBase):
     model_config = ConfigDict(from_attributes=True)
