@@ -33,10 +33,11 @@ import { DashboardCards } from "./modules/dashboard/DashboardCards";
 import { createOccurrence, deleteOccurrence, fetchCategories, fetchOccurrence, fetchOccurrences, fetchPriorities, updateOccurrence } from "./modules/occurrences/api";
 import { OccurrenceDialog } from "./modules/occurrences/OccurrenceDialog";
 import { OccurrenceHistory } from "./modules/occurrences/OccurrenceHistory";
+import { occurrenceStatuses } from "./modules/occurrences/types";
 import type { Category, Occurrence, Priority } from "./modules/occurrences/types";
 import { TxFilterBar } from "./shared/components/TxFilterBar";
 import { TxStatusBadge } from "./shared/components/TxStatusBadge";
-import type { FilterCondition } from "./shared/types";
+import type { FilterCondition, FilterOption } from "./shared/types";
 
 
 const loginSchema = z.object({
@@ -69,6 +70,18 @@ export default function App() {
   const [activeFilters, setActiveFilters] = useState<FilterCondition[]>([]);
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({ page: 0, pageSize: 10 });
   const [rowCount, setRowCount] = useState(0);
+  const categoryFilterOptions = useMemo<FilterOption[]>(
+    () => categories.map((category) => ({ label: category.name, value: String(category.id) })),
+    [categories]
+  );
+  const priorityFilterOptions = useMemo<FilterOption[]>(
+    () => priorities.map((priority) => ({ label: priority.name, value: String(priority.id) })),
+    [priorities]
+  );
+  const statusFilterOptions = useMemo<FilterOption[]>(
+    () => occurrenceStatuses.map((status) => ({ label: status, value: status })),
+    []
+  );
 
   const { control, handleSubmit, formState: { errors } } = useForm<LoginValues>({
     resolver: zodResolver(loginSchema),
@@ -343,6 +356,9 @@ async function submitOccurrence(values: {
                   { label: "Prioridade", value: "priority_id" }
                 ]}
                 filter={filterDraft}
+                categoryOptions={categoryFilterOptions}
+                priorityOptions={priorityFilterOptions}
+                statusOptions={statusFilterOptions}
                 onChange={setFilterDraft}
                 onApply={applyFilters}
                 onClear={clearFilters}

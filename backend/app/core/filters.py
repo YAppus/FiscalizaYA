@@ -27,6 +27,24 @@ def apply_filters(query, filters: Sequence[tuple[str, str, str]], allowed_fields
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Filtering by {field_name} is not allowed")
 
         value = raw_value.strip()
+        if field_name in {"priority_id", "category_id", "status"} and operator != "eq":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Filtering by {field_name} only supports the eq operator",
+            )
+        if field_name in {"cpf", "description"} and operator != "like":
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Filtering by {field_name} only supports the like operator",
+            )
+        if field_name in {"priority_id", "category_id"}:
+            try:
+                value = int(value)
+            except ValueError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"{field_name} must be an integer value",
+                ) from exc
         if operator == "eq":
             query = query.where(column == value)
         elif operator == "neq":

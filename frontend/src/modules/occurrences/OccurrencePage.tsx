@@ -8,7 +8,8 @@ import { useMemo } from "react";
 
 import { TxFilterBar } from "../../shared/components/TxFilterBar";
 import { TxStatusBadge } from "../../shared/components/TxStatusBadge";
-import type { FilterCondition } from "../../shared/types";
+import type { FilterCondition, FilterOption } from "../../shared/types";
+import { occurrenceStatuses } from "./types";
 import type { Category, Occurrence, Priority } from "./types";
 
 
@@ -48,6 +49,19 @@ export function OccurrencePage({
   onOpenHistory,
   onDelete
 }: OccurrencePageProps) {
+  const categoryFilterOptions: FilterOption[] = categories.map((category) => ({
+    label: category.name,
+    value: String(category.id)
+  }));
+  const priorityFilterOptions: FilterOption[] = priorities.map((priority) => ({
+    label: priority.name,
+    value: String(priority.id)
+  }));
+  const statusFilterOptions: FilterOption[] = occurrenceStatuses.map((status) => ({
+    label: status,
+    value: status
+  }));
+
   const columns = useMemo<GridColDef<Occurrence>[]>(() => [
     { field: "id", headerName: "ID", width: 90 },
     { field: "cpf", headerName: "CPF", minWidth: 150, flex: 0.9 },
@@ -95,6 +109,9 @@ export function OccurrencePage({
           { label: "Prioridade", value: "priority_id" }
         ]}
         filter={filterDraft}
+        categoryOptions={categoryFilterOptions}
+        priorityOptions={priorityFilterOptions}
+        statusOptions={statusFilterOptions}
         onChange={onFilterChange}
         onApply={onApplyFilters}
         onClear={onClearFilters}
