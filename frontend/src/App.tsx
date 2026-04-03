@@ -113,8 +113,10 @@ export default function App() {
 
   useEffect(() => {
     if (!user) {
+      setTab("dashboard");
       return;
     }
+    setTab("dashboard");
     void loadBootstrapData();
   }, [user]);
 
