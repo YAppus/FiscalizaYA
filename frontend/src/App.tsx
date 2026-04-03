@@ -1,44 +1,21 @@
-import AddRoundedIcon from "@mui/icons-material/AddRounded";
-import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
-import EditRoundedIcon from "@mui/icons-material/EditRounded";
-import HistoryRoundedIcon from "@mui/icons-material/HistoryRounded";
 import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-  Alert,
-  AppBar,
-  Box,
-  Button,
-  Card,
-  CardContent,
-  Container,
-  Grid,
-  IconButton,
-  Snackbar,
-  Stack,
-  Tab,
-  Tabs,
-  TextField,
-  Toolbar,
-  Typography
-} from "@mui/material";
-import { DataGrid, type GridColDef, type GridPaginationModel } from "@mui/x-data-grid";
-import { useEffect, useMemo, useState } from "react";
-import { Controller, useForm } from "react-hook-form";
+import { Alert, AppBar, Box, Button, Card, CardContent, Container, Grid, Snackbar, Stack, Tab, Tabs, Toolbar, Typography } from "@mui/material";
+import type { GridPaginationModel } from "@mui/x-data-grid";
+import { useEffect, useState } from "react";
+import { useForm } from "react-hook-form";
 import { z } from "zod";
 
 import { useAuth } from "./modules/auth/AuthContext";
+import { LoginScreen } from "./modules/auth/LoginScreen";
 import { fetchDashboardCounts } from "./modules/dashboard/api";
 import { DashboardCards } from "./modules/dashboard/DashboardCards";
 import { createOccurrence, deleteOccurrence, fetchCategories, fetchOccurrence, fetchOccurrences, fetchPriorities, updateOccurrence } from "./modules/occurrences/api";
 import { OccurrenceDialog } from "./modules/occurrences/OccurrenceDialog";
 import { OccurrenceHistory } from "./modules/occurrences/OccurrenceHistory";
-import { occurrenceStatuses } from "./modules/occurrences/types";
+import { OccurrencePage } from "./modules/occurrences/OccurrencePage";
 import type { Category, Occurrence, Priority } from "./modules/occurrences/types";
-import { TxFilterBar } from "./shared/components/TxFilterBar";
-import { TxStatusBadge } from "./shared/components/TxStatusBadge";
-import type { FilterCondition, FilterOption } from "./shared/types";
-
+import type { FilterCondition } from "./shared/types";
 
 const loginSchema = z.object({
   email: z.string().email("Informe um e-mail valido"),
@@ -48,8 +25,17 @@ const loginSchema = z.object({
 type LoginValues = z.infer<typeof loginSchema>;
 type AppTab = "dashboard" | "occurrences";
 
-const initialFilter: FilterCondition = { field: "status", operator: "eq", value: "" };
+type OccurrenceFormValues = {
+  cpf: string;
+  category_id: number;
+  priority_id: number;
+  status: string;
+  description: string;
+  opened_at: string;
+  closed_at?: string;
+};
 
+const initialFilter: FilterCondition = { field: "status", operator: "eq", value: "" };
 
 export default function App() {
   const { user, loading, error, message, login, logout, clearFeedback } = useAuth();
@@ -70,65 +56,18 @@ export default function App() {
   const [activeFilters, setActiveFilters] = useState<FilterCondition[]>([]);
   const [paginationModel, setPaginationModel] = useState<GridPaginationModel>({ page: 0, pageSize: 10 });
   const [rowCount, setRowCount] = useState(0);
-  const categoryFilterOptions = useMemo<FilterOption[]>(
-    () => categories.map((category) => ({ label: category.name, value: String(category.id) })),
-    [categories]
-  );
-  const priorityFilterOptions = useMemo<FilterOption[]>(
-    () => priorities.map((priority) => ({ label: priority.name, value: String(priority.id) })),
-    [priorities]
-  );
-  const statusFilterOptions = useMemo<FilterOption[]>(
-    () => occurrenceStatuses.map((status) => ({ label: status, value: status })),
-    []
-  );
 
   const { control, handleSubmit, formState: { errors } } = useForm<LoginValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: { email: "", password: "" }
   });
 
-  const columns = useMemo<GridColDef<Occurrence>[]>(() => [
-    { field: "id", headerName: "ID", width: 90 },
-    { field: "cpf", headerName: "CPF", minWidth: 150, flex: 0.9 },
-    {
-      field: "status",
-      headerName: "Status",
-      minWidth: 160,
-      flex: 1,
-      renderCell: (params) => <TxStatusBadge status={String(params.value)} />
-    },
-    { field: "category", headerName: "Categoria", minWidth: 160, flex: 1, valueGetter: (_value, row) => row.category.name },
-    { field: "priority", headerName: "Prioridade", minWidth: 160, flex: 1, valueGetter: (_value, row) => row.priority.name },
-    { field: "opened_at", headerName: "Abertura", minWidth: 180, flex: 1, valueGetter: (_value, row) => formatDate(row.opened_at) },
-    { field: "closed_at", headerName: "Encerramento", minWidth: 180, flex: 1, valueGetter: (_value, row) => row.closed_at ? formatDate(row.closed_at) : "-" },
-    {
-      field: "actions",
-      headerName: "Acoes",
-      sortable: false,
-      filterable: false,
-      minWidth: 160,
-      renderCell: ({ row }) => (
-        <Stack direction="row" spacing={0.5}>
-          <IconButton size="small" onClick={() => void handleEdit(row.id)}>
-            <EditRoundedIcon fontSize="small" />
-          </IconButton>
-          <IconButton size="small" onClick={() => void handleOpenHistory(row.id)}>
-            <HistoryRoundedIcon fontSize="small" />
-          </IconButton>
-          <IconButton size="small" color="error" onClick={() => void handleDelete(row.id)}>
-            <DeleteOutlineRoundedIcon fontSize="small" />
-          </IconButton>
-        </Stack>
-      )
-    }
-  ], []);
-
   useEffect(() => {
     if (!user) {
       setTab("dashboard");
       return;
     }
+
     setTab("dashboard");
     void loadBootstrapData();
   }, [user]);
@@ -137,6 +76,7 @@ export default function App() {
     if (!user) {
       return;
     }
+
     void loadDashboard();
     void loadOccurrences();
   }, [user, paginationModel.page, paginationModel.pageSize, activeFilters]);
@@ -196,6 +136,7 @@ export default function App() {
     if (!window.confirm("Deseja realmente excluir esta ocorrencia?")) {
       return;
     }
+
     try {
       await deleteOccurrence(id);
       setOccurrenceMessage("Ocorrencia removida com sucesso.");
@@ -206,15 +147,7 @@ export default function App() {
     }
   }
 
-async function submitOccurrence(values: {
-    cpf: string;
-    category_id: number;
-    priority_id: number;
-    status: string;
-    description: string;
-    opened_at: string;
-    closed_at?: string;
-  }) {
+  async function submitOccurrence(values: OccurrenceFormValues) {
     setDialogLoading(true);
     try {
       const basePayload = {
@@ -253,6 +186,7 @@ async function submitOccurrence(values: {
         await createOccurrence(basePayload);
         setOccurrenceMessage("Ocorrencia criada com sucesso.");
       }
+
       setDialogOpen(false);
       setSelectedOccurrence(null);
       setOccurrenceError(null);
@@ -346,67 +280,26 @@ async function submitOccurrence(values: {
           {tab === "dashboard" ? (
             <DashboardCards counts={dashboardCounts} />
           ) : (
-            <Stack spacing={2}>
-              <TxFilterBar
-                fields={[
-                  { label: "Status", value: "status" },
-                  { label: "CPF", value: "cpf" },
-                  { label: "Descricao", value: "description" },
-                  { label: "Categoria", value: "category_id" },
-                  { label: "Prioridade", value: "priority_id" }
-                ]}
-                filter={filterDraft}
-                categoryOptions={categoryFilterOptions}
-                priorityOptions={priorityFilterOptions}
-                statusOptions={statusFilterOptions}
-                onChange={setFilterDraft}
-                onApply={applyFilters}
-                onClear={clearFilters}
-              />
-
-              <Card elevation={0} sx={{ borderRadius: 4 }}>
-                <CardContent sx={{ p: { xs: 2, md: 3 } }}>
-                  <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" spacing={2} sx={{ mb: 2 }}>
-                    <Box>
-                      <Typography variant="h5">CRUD de ocorrencias</Typography>
-                      <Typography color="text.secondary">Paginação server-side, filtros por coluna e acesso ao histórico.</Typography>
-                    </Box>
-                    <Button
-                      variant="contained"
-                      startIcon={<AddRoundedIcon />}
-                      onClick={() => {
-                        setSelectedOccurrence(null);
-                        setDialogOpen(true);
-                      }}
-                    >
-                      Nova ocorrencia
-                    </Button>
-                  </Stack>
-
-                  {!categories.length || !priorities.length ? (
-                    <Alert severity="warning" sx={{ mb: 2 }}>
-                      Cadastre categorias e prioridades no backend para operar o formulario de ocorrencias.
-                    </Alert>
-                  ) : null}
-
-                  <Box sx={{ width: "100%", overflow: "hidden" }}>
-                    <DataGrid
-                      autoHeight
-                      rows={occurrences}
-                      columns={columns}
-                      loading={gridLoading}
-                      rowCount={rowCount}
-                      paginationMode="server"
-                      paginationModel={paginationModel}
-                      onPaginationModelChange={setPaginationModel}
-                      pageSizeOptions={[5, 10, 20, 50]}
-                      disableRowSelectionOnClick
-                      sx={{ border: 0 }}
-                    />
-                  </Box>
-                </CardContent>
-              </Card>
-            </Stack>
+            <OccurrencePage
+              categories={categories}
+              priorities={priorities}
+              rows={occurrences}
+              loading={gridLoading}
+              rowCount={rowCount}
+              filterDraft={filterDraft}
+              paginationModel={paginationModel}
+              onFilterChange={setFilterDraft}
+              onApplyFilters={applyFilters}
+              onClearFilters={clearFilters}
+              onPaginationModelChange={setPaginationModel}
+              onCreate={() => {
+                setSelectedOccurrence(null);
+                setDialogOpen(true);
+              }}
+              onEdit={(id) => void handleEdit(id)}
+              onOpenHistory={(id) => void handleOpenHistory(id)}
+              onDelete={(id) => void handleDelete(id)}
+            />
           )}
         </Stack>
       </Container>
@@ -442,96 +335,9 @@ async function submitOccurrence(values: {
   );
 }
 
-
-function LoginScreen({
-  control,
-  errors,
-  loading,
-  error,
-  onSubmit
-}: {
-  control: ReturnType<typeof useForm<LoginValues>>["control"];
-  errors: ReturnType<typeof useForm<LoginValues>>["formState"]["errors"];
-  loading: boolean;
-  error: string | null;
-  onSubmit: () => void;
-}) {
-  return (
-    <Box sx={{ minHeight: "100vh", background: "radial-gradient(circle at top left, rgba(11,95,255,0.22), transparent 35%), linear-gradient(180deg, #f8fbff 0%, #eef3fb 100%)", py: 6 }}>
-      <Container maxWidth="lg">
-        <Grid container spacing={4}>
-          <Grid size={{ xs: 12, md: 7 }}>
-            <Card elevation={0} sx={{ borderRadius: 5, height: "100%", color: "white", background: "linear-gradient(145deg, #081f5c 0%, #0b5fff 58%, #4ba3ff 100%)" }}>
-              <CardContent sx={{ p: { xs: 3, md: 5 } }}>
-                <Typography variant="h3" gutterBottom>Controle de ocorrencias</Typography>
-                <Typography variant="h6" sx={{ opacity: 0.9, maxWidth: 560 }}>
-                  Login JWT, dashboard por status, DataGrid paginado e histórico completo da evolução de cada atendimento.
-                </Typography>
-                <Stack spacing={2.5} sx={{ mt: 4 }}>
-                  <Feature label="Dashboard operacional" description="Acompanhe rapidamente quantas ocorrencias estao em cada etapa do fluxo." />
-                  <Feature label="CRUD responsivo" description="Trabalhe com filtros, paginação server-side e formulários validados." />
-                  <Feature label="Histórico auditável" description="Veja a linha do tempo de mudanças de status sem expor HTML dinâmico." />
-                </Stack>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid size={{ xs: 12, md: 5 }}>
-            <Card elevation={0} sx={{ borderRadius: 5 }}>
-              <CardContent sx={{ p: { xs: 3, md: 4 } }}>
-                <Typography variant="h4" gutterBottom>Entrar</Typography>
-                <Typography color="text.secondary" sx={{ mb: 3 }}>Use suas credenciais para acessar as rotas protegidas.</Typography>
-                {error ? <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert> : null}
-                <Stack spacing={2.5}>
-                  <Controller
-                    name="email"
-                    control={control}
-                    render={({ field }) => (
-                      <TextField {...field} label="Email" type="email" error={!!errors.email} helperText={errors.email?.message} />
-                    )}
-                  />
-                  <Controller
-                    name="password"
-                    control={control}
-                    render={({ field }) => (
-                      <TextField {...field} label="Senha" type="password" error={!!errors.password} helperText={errors.password?.message} />
-                    )}
-                  />
-                  <Button variant="contained" size="large" onClick={onSubmit} disabled={loading}>
-                    {loading ? "Entrando..." : "Entrar"}
-                  </Button>
-                  <Typography variant="body2" color="text.secondary">
-                    O frontend valida antes do envio, mas a API continua responsável pela validação final e pela segurança.
-                  </Typography>
-                </Stack>
-              </CardContent>
-            </Card>
-          </Grid>
-        </Grid>
-      </Container>
-    </Box>
-  );
-}
-
-
-function Feature({ label, description }: { label: string; description: string }) {
-  return (
-    <Box>
-      <Typography variant="h6">{label}</Typography>
-      <Typography sx={{ opacity: 0.82 }}>{description}</Typography>
-    </Box>
-  );
-}
-
-
-function formatDate(value: string) {
-  return new Date(value).toLocaleString("pt-BR");
-}
-
-
 function toInputDateTime(value: string) {
   return value.slice(0, 16);
 }
-
 
 function extractErrorMessage(error: unknown, fallback: string) {
   if (typeof error === "object" && error !== null && "response" in error) {
