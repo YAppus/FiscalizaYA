@@ -160,6 +160,19 @@ def _build_description_change_note(previous_description: str, new_description: s
     return base_note
 
 
+def _build_change_note(field_label: str, previous_value: str, new_value: str) -> str:
+    base_note = f"{field_label} alterada"
+    detail = f" de '{previous_value}' para '{new_value}'"
+    max_length = 255
+    if len(base_note) + len(detail) <= max_length:
+        return f"{base_note}{detail}"
+    return base_note
+
+
+def _format_history_datetime(value: datetime) -> str:
+    return value.astimezone(UTC).strftime("%d/%m/%Y %H:%M:%S UTC") if value.tzinfo else value.strftime("%d/%m/%Y %H:%M:%S")
+
+
 def _assert_description_update_allowed(current_status: str) -> None:
     blocked_statuses = {
         OccurrenceStatus.EM_ANDAMENTO.value,
@@ -172,6 +185,30 @@ def _assert_description_update_allowed(current_status: str) -> None:
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Nao e permitido alterar a descricao neste status da ocorrencia",
         )
+
+
+def _assert_immutable_occurrence_fields(entity: Occurrence, data: dict) -> None:
+    if "cpf" in data and data["cpf"] != entity.cpf:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Nao e permitido alterar CPF da ocorrencia",
+        )
+
+    mutable_only_in_early_status = {
+        "category_id": ("categoria", entity.category_id),
+        "priority_id": ("prioridade", entity.priority_id),
+        "opened_at": ("data de abertura", entity.opened_at),
+    }
+
+    for field, (label, current_value) in mutable_only_in_early_status.items():
+        if field in data and data[field] != current_value and entity.status not in {
+            OccurrenceStatus.ABERTA.value,
+            OccurrenceStatus.EM_ANALISE.value,
+        }:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Nao e permitido alterar {label} da ocorrencia",
+            )
 
 
 def _is_terminal_status(status_value: str) -> bool:
@@ -206,11 +243,6 @@ def _validate_status_and_dates(status_value: str, opened_at: datetime, closed_at
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Statuses terminais exigem data de encerramento",
         )
-    if not _is_terminal_status(status_value) and closed_at is not None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Somente ocorrencias fechadas ou canceladas podem ter data de encerramento",
-        )
 
 
 async def create_occurrence(session: AsyncSession, payload: OccurrenceCreate, current_user: User | None) -> Occurrence:
@@ -232,12 +264,22 @@ async def create_occurrence(session: AsyncSession, payload: OccurrenceCreate, cu
 
 async def update_occurrence(session: AsyncSession, entity: Occurrence, payload: OccurrenceUpdate, current_user: User | None) -> Occurrence:
     data = payload.model_dump(exclude_unset=True)
+    _assert_immutable_occurrence_fields(entity, data)
+
+    category_before = None
+    category_after = None
+    priority_before = None
+    priority_after = None
     if "category_id" in data or "priority_id" in data:
         await _assert_foreign_keys(
             session,
             data.get("category_id", entity.category_id),
             data.get("priority_id", entity.priority_id),
         )
+        category_before = await get_or_404(session, Category, entity.category_id)
+        category_after = await get_or_404(session, Category, data.get("category_id", entity.category_id))
+        priority_before = await get_or_404(session, Priority, entity.priority_id)
+        priority_after = await get_or_404(session, Priority, data.get("priority_id", entity.priority_id))
 
     if "cpf" in data and data["cpf"] is not None:
         data["cpf"] = validate_cpf(data["cpf"])
@@ -245,6 +287,7 @@ async def update_occurrence(session: AsyncSession, entity: Occurrence, payload: 
     previous_status = entity.status
     next_status = data.get("status", previous_status)
     previous_description = entity.description
+    previous_opened_at = entity.opened_at
 
     if "description" in data and data["description"] != previous_description:
         _assert_description_update_allowed(previous_status)
@@ -264,14 +307,43 @@ async def update_occurrence(session: AsyncSession, entity: Occurrence, payload: 
     for field, value in data.items():
         setattr(entity, field, value)
 
+    history_notes: list[str] = []
     if "description" in data and data["description"] != previous_description:
+        history_notes.append(_build_description_change_note(previous_description, data["description"]))
+
+    if (
+        "category_id" in data
+        and category_before is not None
+        and category_after is not None
+        and category_before.id != category_after.id
+    ):
+        history_notes.append(_build_change_note("Categoria", category_before.name, category_after.name))
+
+    if (
+        "priority_id" in data
+        and priority_before is not None
+        and priority_after is not None
+        and priority_before.id != priority_after.id
+    ):
+        history_notes.append(_build_change_note("Prioridade", priority_before.name, priority_after.name))
+
+    if "opened_at" in data and data["opened_at"] != previous_opened_at:
+        history_notes.append(
+            _build_change_note(
+                "Data de abertura",
+                _format_history_datetime(previous_opened_at),
+                _format_history_datetime(data["opened_at"]),
+            )
+        )
+
+    for note in history_notes:
         await _register_status_history(
             session,
             entity,
             previous_status,
             previous_status,
             current_user.id if current_user else None,
-            _build_description_change_note(previous_description, data["description"]),
+            note,
         )
 
     if next_status != previous_status:
