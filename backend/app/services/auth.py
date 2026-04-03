@@ -18,7 +18,7 @@ from app.models.user import User
 from app.schemas.auth import AuthResponse, LoginRequest, RegisterRequest, TokenPair, UserResponse
 
 
-def _auth_error(detail: str = "Authentication failed") -> HTTPException:
+def _auth_error(detail: str = "E-mail ou senha incorretos") -> HTTPException:
     return HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=detail)
 
 
