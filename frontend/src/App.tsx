@@ -193,7 +193,7 @@ export default function App() {
     }
   }
 
-  async function submitOccurrence(values: {
+async function submitOccurrence(values: {
     cpf: string;
     category_id: number;
     priority_id: number;
@@ -204,16 +204,40 @@ export default function App() {
   }) {
     setDialogLoading(true);
     try {
-      const payload = {
+      const basePayload = {
         ...values,
         opened_at: new Date(values.opened_at).toISOString(),
         closed_at: values.closed_at ? new Date(values.closed_at).toISOString() : null
       };
+
+      const payload: Partial<{
+        cpf: string;
+        category_id: number;
+        priority_id: number;
+        status: string;
+        description: string;
+        opened_at: string | null;
+        closed_at: string | null;
+      }> = {
+        ...basePayload
+      };
+
+      if (selectedOccurrence) {
+        if (toInputDateTime(selectedOccurrence.opened_at) === values.opened_at) {
+          delete payload.opened_at;
+        }
+
+        const currentClosedAt = selectedOccurrence.closed_at ? toInputDateTime(selectedOccurrence.closed_at) : "";
+        if (currentClosedAt === (values.closed_at ?? "")) {
+          delete payload.closed_at;
+        }
+      }
+
       if (selectedOccurrence) {
         await updateOccurrence(selectedOccurrence.id, payload);
         setOccurrenceMessage("Ocorrencia atualizada com sucesso.");
       } else {
-        await createOccurrence(payload);
+        await createOccurrence(basePayload);
         setOccurrenceMessage("Ocorrencia criada com sucesso.");
       }
       setDialogOpen(false);
@@ -485,6 +509,11 @@ function Feature({ label, description }: { label: string; description: string })
 
 function formatDate(value: string) {
   return new Date(value).toLocaleString("pt-BR");
+}
+
+
+function toInputDateTime(value: string) {
+  return value.slice(0, 16);
 }
 
 

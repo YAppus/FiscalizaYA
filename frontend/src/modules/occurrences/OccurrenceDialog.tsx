@@ -60,6 +60,7 @@ export function OccurrenceDialog({
   });
 
   const occurrenceId = occurrence?.id;
+  const availableStatuses = occurrence ? occurrenceStatuses : ["Aberta"];
 
   useEffect(() => {
     reset({
@@ -95,7 +96,7 @@ export function OccurrenceDialog({
                 control={control}
                 render={({ field }) => (
                   <TextField {...field} select fullWidth label="Status" error={!!errors.status} helperText={errors.status?.message}>
-                    {occurrenceStatuses.map((status) => (
+                    {availableStatuses.map((status) => (
                       <MenuItem key={status} value={status}>{status}</MenuItem>
                     ))}
                   </TextField>

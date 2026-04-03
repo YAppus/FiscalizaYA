@@ -34,7 +34,7 @@ export async function createOccurrence(payload: OccurrencePayload) {
 }
 
 
-export async function updateOccurrence(id: number, payload: OccurrencePayload) {
+export async function updateOccurrence(id: number, payload: Partial<OccurrencePayload>) {
   const response = await api.put<Occurrence>(`/occurrences/${id}`, payload);
   return response.data;
 }
