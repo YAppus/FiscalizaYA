@@ -21,6 +21,7 @@ register_exception_handlers(app)
 
 app.include_router(health.router, prefix="/api/v1")
 app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
+app.include_router(auth.router, prefix="/auth", tags=["auth"])
 app.include_router(categories.router, prefix="/api/v1")
 app.include_router(priorities.router, prefix="/api/v1")
 app.include_router(occurrences.router, prefix="/api/v1")
