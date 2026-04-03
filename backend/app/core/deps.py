@@ -12,7 +12,7 @@ import jwt
 
 def extract_bearer_token(authorization: str | None) -> str:
     if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing bearer token")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token bearer ausente")
     return authorization.removeprefix("Bearer ").strip()
 
 

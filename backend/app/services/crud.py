@@ -36,7 +36,7 @@ ALLOWED_STATUS_TRANSITIONS = {
 async def get_or_404(session: AsyncSession, model, entity_id):
     entity = await session.get(model, entity_id)
     if not entity:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"{model.__name__} not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"{model.__name__} nao encontrado")
     return entity
 
 
@@ -44,7 +44,7 @@ async def _ensure_unique(session: AsyncSession, model, column, value, entity_id=
     result = await session.execute(select(model).where(column == value))
     existing = result.scalar_one_or_none()
     if existing and getattr(existing, "id") != entity_id:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"{model.__name__} already exists")
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"{model.__name__} ja existe")
 
 
 async def create_category(session: AsyncSession, payload: CategoryCreate) -> Category:
@@ -123,12 +123,12 @@ def _assert_status_transition(current_status: str, next_status: str) -> None:
     if current_status == next_status:
         return
     if next_status == OccurrenceStatus.CANCELADA.value and current_status != OccurrenceStatus.ABERTA.value:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cancellation is only allowed from Aberta")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="O cancelamento so e permitido a partir de Aberta")
     allowed = ALLOWED_STATUS_TRANSITIONS[current_status]
     if next_status not in allowed:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Transition from {current_status} to {next_status} is not allowed",
+            detail=f"A transicao de {current_status} para {next_status} nao e permitida",
         )
 
 
@@ -241,7 +241,7 @@ def _validate_status_and_dates(status_value: str, opened_at: datetime, closed_at
     if _is_terminal_status(status_value) and closed_at is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Statuses terminais exigem data de encerramento",
+            detail="Status terminais exigem data de encerramento",
         )
 
 

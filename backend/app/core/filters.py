@@ -14,7 +14,7 @@ def parse_filters(filtro: list[str] | None = Query(default=None)) -> list[tuple[
         if len(parts) != 3:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid filter format: {item}. Use field:operator:value",
+                detail=f"Formato de filtro invalido: {item}. Use campo:operador:valor",
             )
         parsed.append((parts[0], parts[1], parts[2]))
     return parsed
@@ -24,18 +24,18 @@ def apply_filters(query, filters: Sequence[tuple[str, str, str]], allowed_fields
     for field_name, operator, raw_value in filters:
         column = allowed_fields.get(field_name)
         if column is None:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Filtering by {field_name} is not allowed")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Nao e permitido filtrar por {field_name}")
 
         value = raw_value.strip()
         if field_name in {"priority_id", "category_id", "status"} and operator != "eq":
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Filtering by {field_name} only supports the eq operator",
+                detail=f"O campo {field_name} aceita apenas o operador eq",
             )
         if field_name in {"cpf", "description"} and operator != "like":
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Filtering by {field_name} only supports the like operator",
+                detail=f"O campo {field_name} aceita apenas o operador like",
             )
         if field_name in {"priority_id", "category_id"}:
             try:
@@ -43,7 +43,7 @@ def apply_filters(query, filters: Sequence[tuple[str, str, str]], allowed_fields
             except ValueError as exc:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"{field_name} must be an integer value",
+                    detail=f"{field_name} deve ser um valor inteiro",
                 ) from exc
         if operator == "eq":
             query = query.where(column == value)
@@ -65,10 +65,10 @@ def apply_filters(query, filters: Sequence[tuple[str, str, str]], allowed_fields
         elif operator == "isnull":
             normalized = value.lower()
             if normalized not in {"true", "false"}:
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="isnull accepts true or false")
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="isnull aceita apenas true ou false")
             query = query.where(column.is_(None) if normalized == "true" else column.is_not(None))
         else:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Unsupported operator: {operator}")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Operador nao suportado: {operator}")
     return query
 
 

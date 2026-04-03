@@ -14,7 +14,7 @@ def register_exception_handlers(app: FastAPI) -> None:
         logger.warning("Validation error on %s %s: %s", request.method, request.url.path, exc.errors())
         return JSONResponse(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            content={"detail": "Validation error"},
+            content={"detail": "Erro de validacao"},
         )
 
     @app.exception_handler(HTTPException)
@@ -27,5 +27,5 @@ def register_exception_handlers(app: FastAPI) -> None:
         logger.exception("Unexpected error on %s %s", request.method, request.url.path, exc_info=exc)
         return JSONResponse(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={"detail": "Internal server error"},
+            content={"detail": "Erro interno do servidor"},
         )
