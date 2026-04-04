@@ -21,7 +21,7 @@ export function LoginScreen({ control, errors, loading, error, onSubmit }: Login
     <Box sx={{ minHeight: "100vh", background: "radial-gradient(circle at top left, rgba(11,95,255,0.22), transparent 35%), linear-gradient(180deg, #f8fbff 0%, #eef3fb 100%)", py: 6 }}>
       <Container maxWidth="lg">
         <Grid container spacing={4}>
-          <Grid size={{ xs: 12, md: 7 }}>
+          <Grid size={{ xs: 12, md: 7 }} sx={{ order: { xs: 2, md: 1 } }}>
             <Card elevation={0} sx={{ borderRadius: 5, height: "100%", color: "white", background: "linear-gradient(145deg, #081f5c 0%, #0b5fff 58%, #4ba3ff 100%)" }}>
               <CardContent sx={{ p: { xs: 3, md: 5 } }}>
                 <Typography variant="h3" gutterBottom>Controle de ocorrencias</Typography>
@@ -36,7 +36,7 @@ export function LoginScreen({ control, errors, loading, error, onSubmit }: Login
               </CardContent>
             </Card>
           </Grid>
-          <Grid size={{ xs: 12, md: 5 }}>
+          <Grid size={{ xs: 12, md: 5 }} sx={{ order: { xs: 1, md: 2 } }}>
             <Card elevation={0} sx={{ borderRadius: 5 }}>
               <CardContent sx={{ p: { xs: 3, md: 4 } }}>
                 <Typography variant="h4" gutterBottom>Entrar</Typography>

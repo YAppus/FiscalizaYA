@@ -54,7 +54,7 @@ export function OccurrenceDialog({
       priority_id: occurrence?.priority.id ?? 0,
       status: (occurrence?.status as FormValues["status"]) ?? "Aberta",
       description: occurrence?.description ?? "",
-      opened_at: occurrence ? toInputDateTime(occurrence.opened_at) : toInputDateTime(new Date().toISOString()),
+      opened_at: occurrence ? toInputDateTime(occurrence.opened_at) : getCurrentLocalDateTime(),
       closed_at: occurrence?.closed_at ? toInputDateTime(occurrence.closed_at) : ""
     }
   });
@@ -69,7 +69,7 @@ export function OccurrenceDialog({
       priority_id: occurrence?.priority.id ?? 0,
       status: (occurrence?.status as FormValues["status"]) ?? "Aberta",
       description: occurrence?.description ?? "",
-      opened_at: occurrence ? toInputDateTime(occurrence.opened_at) : toInputDateTime(new Date().toISOString()),
+      opened_at: occurrence ? toInputDateTime(occurrence.opened_at) : getCurrentLocalDateTime(),
       closed_at: occurrence?.closed_at ? toInputDateTime(occurrence.closed_at) : ""
     });
   }, [occurrenceId, occurrence, reset]);
@@ -171,5 +171,13 @@ export function OccurrenceDialog({
 
 
 function toInputDateTime(value: string) {
-  return value.slice(0, 16);
+  const date = new Date(value);
+  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return localDate.toISOString().slice(0, 16);
+}
+
+function getCurrentLocalDateTime() {
+  const now = new Date();
+  const localDate = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+  return localDate.toISOString().slice(0, 16);
 }

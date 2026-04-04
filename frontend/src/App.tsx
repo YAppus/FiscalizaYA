@@ -336,7 +336,9 @@ export default function App() {
 }
 
 function toInputDateTime(value: string) {
-  return value.slice(0, 16);
+  const date = new Date(value);
+  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return localDate.toISOString().slice(0, 16);
 }
 
 function extractErrorMessage(error: unknown, fallback: string) {
