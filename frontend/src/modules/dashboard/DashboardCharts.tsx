@@ -47,11 +47,12 @@ export function DashboardCharts({ periods }: { periods: DashboardSolicitationPer
             </Tabs>
           </Stack>
 
+          <Typography variant="subtitle1" sx={{ textAlign: "center", fontWeight: 700 }}>
+            Grafico de ocorrencias
+          </Typography>
+
           <Stack direction={{ xs: "column", lg: "row" }} spacing={3} alignItems={{ xs: "stretch", lg: "flex-start" }}>
             <Box sx={{ flex: 1 }}>
-              <Typography variant="subtitle1" sx={{ mb: 1.5 }}>
-                Grafico de colunas
-              </Typography>
               <Stack direction="row" spacing={1.5} alignItems="flex-end" sx={{ minHeight: 220 }}>
                 {period.slices.map((slice) => (
                   <Stack key={slice.status} spacing={1} alignItems="center" sx={{ flex: 1, minWidth: 0 }}>
@@ -78,9 +79,6 @@ export function DashboardCharts({ periods }: { periods: DashboardSolicitationPer
             </Box>
 
             <Box sx={{ width: { xs: "100%", lg: 320 } }}>
-              <Typography variant="subtitle1" sx={{ mb: 1.5 }}>
-                Grafico de pizza
-              </Typography>
               <Stack spacing={2} alignItems="center">
                 <Box
                   sx={{

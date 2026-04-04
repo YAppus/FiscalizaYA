@@ -1,8 +1,16 @@
-import { Box, ButtonBase, Card, CardContent, Grid, Stack, Typography } from "@mui/material";
+import { Box, ButtonBase, Card, CardContent, Divider, Grid, Stack, Typography } from "@mui/material";
 
-import { TxStatusBadge } from "../../shared/components/TxStatusBadge";
 import { DashboardCharts } from "./DashboardCharts";
 import type { DashboardSolicitationPeriod, StatusCount } from "./types";
+
+const statusColors: Record<string, string> = {
+  Aberta: "#9AA5B1",
+  "Em Analise": "#4BA3FF",
+  "Em Andamento": "#FFB020",
+  Resolvida: "#D8C84A",
+  Fechada: "#39A96B",
+  Cancelada: "#E25555"
+};
 
 export function DashboardCards({
   counts,
@@ -38,12 +46,39 @@ export function DashboardCards({
                       alignItems: "stretch"
                     }}
                   >
-                    <CardContent sx={{ width: "100%" }}>
-                      <TxStatusBadge status={item.status} />
-                      <Typography variant="h4" sx={{ mt: 2, mb: 0.5 }}>
+                    <CardContent sx={{ width: "100%", minWidth: 0, px: 2.25, py: 1.75 }}>
+                      <Typography
+                        variant="h6"
+                        sx={{
+                          textAlign: "center",
+                          fontSize: "1.05rem",
+                          mb: 1.25,
+                          color: statusColors[item.status] ?? "text.primary"
+                        }}
+                      >
+                        {item.status}
+                      </Typography>
+                      <Divider
+                        sx={(theme) => ({
+                          borderColor: theme.palette.mode === "dark" ? "rgba(0,0,0,0.9)" : "rgba(8,17,31,0.92)",
+                          borderBottomWidth: 2.5,
+                          mb: 2
+                        })}
+                      />
+                      <Typography variant="h4" sx={{ mt: 0.5, mb: 0.5 }}>
                         {item.total}
                       </Typography>
-                      <Typography color="text.secondary">ocorrencias com status {item.status}</Typography>
+                      <Typography
+                        color="text.secondary"
+                        sx={{
+                          maxWidth: 112,
+                          lineHeight: 1.45,
+                          overflowWrap: "anywhere",
+                          wordBreak: "break-word"
+                        }}
+                      >
+                        ocorrencias com status {item.status}
+                      </Typography>
                     </CardContent>
                   </ButtonBase>
                 </Card>
