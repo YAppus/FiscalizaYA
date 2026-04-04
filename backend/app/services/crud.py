@@ -245,9 +245,22 @@ def _validate_status_and_dates(status_value: str, opened_at: datetime, closed_at
         )
 
 
+def _validate_status_reason(previous_status: str, next_status: str, status_reason: str | None) -> None:
+    if previous_status == next_status:
+        return
+    if next_status not in {OccurrenceStatus.FECHADA.value, OccurrenceStatus.CANCELADA.value}:
+        return
+    if not status_reason:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Informe o motivo da alteracao de status",
+        )
+
+
 async def create_occurrence(session: AsyncSession, payload: OccurrenceCreate, current_user: User | None) -> Occurrence:
     await _assert_foreign_keys(session, payload.category_id, payload.priority_id)
     data = payload.model_dump()
+    data.pop("status_reason", None)
     data["cpf"] = validate_cpf(payload.cpf)
     data["opened_at"] = data["opened_at"] or datetime.now(UTC)
     _validate_create_occurrence_state(data["status"], data.get("closed_at"))
@@ -264,6 +277,7 @@ async def create_occurrence(session: AsyncSession, payload: OccurrenceCreate, cu
 
 async def update_occurrence(session: AsyncSession, entity: Occurrence, payload: OccurrenceUpdate, current_user: User | None) -> Occurrence:
     data = payload.model_dump(exclude_unset=True)
+    status_reason = data.pop("status_reason", None)
     _assert_immutable_occurrence_fields(entity, data)
 
     category_before = None
@@ -293,6 +307,7 @@ async def update_occurrence(session: AsyncSession, entity: Occurrence, payload: 
         _assert_description_update_allowed(previous_status)
 
     _assert_status_transition(previous_status, next_status)
+    _validate_status_reason(previous_status, next_status, status_reason)
 
     if "status" in data:
         if _is_terminal_status(next_status) and "closed_at" not in data:
@@ -347,7 +362,14 @@ async def update_occurrence(session: AsyncSession, entity: Occurrence, payload: 
         )
 
     if next_status != previous_status:
-        await _register_status_history(session, entity, previous_status, next_status, current_user.id if current_user else None)
+        await _register_status_history(
+            session,
+            entity,
+            previous_status,
+            next_status,
+            current_user.id if current_user else None,
+            status_reason,
+        )
 
     await session.commit()
     await session.refresh(entity)

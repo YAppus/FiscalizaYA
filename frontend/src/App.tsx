@@ -31,6 +31,7 @@ type OccurrenceFormValues = {
   priority_id: number;
   status: string;
   description: string;
+  status_reason?: string;
   opened_at: string;
   closed_at?: string;
 };
@@ -162,6 +163,7 @@ export default function App() {
         priority_id: number;
         status: string;
         description: string;
+        status_reason: string | null;
         opened_at: string | null;
         closed_at: string | null;
       }> = {

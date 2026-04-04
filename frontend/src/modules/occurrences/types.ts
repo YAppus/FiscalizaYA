@@ -39,6 +39,7 @@ export type OccurrencePayload = {
   priority_id: number;
   status: string;
   description: string;
+  status_reason?: string | null;
   opened_at?: string | null;
   closed_at?: string | null;
 };

@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Alert, Button, Dialog, DialogActions, DialogContent, DialogTitle, Grid, MenuItem, Stack, TextField } from "@mui/material";
-import { Controller, useForm } from "react-hook-form";
+import { Controller, useForm, useWatch } from "react-hook-form";
 import { z } from "zod";
 
 import type { Category, Occurrence, Priority } from "./types";
@@ -14,6 +14,7 @@ const schema = z.object({
   priority_id: z.coerce.number().int().positive("Selecione a prioridade"),
   status: z.enum(occurrenceStatuses),
   description: z.string().min(5, "Descreva a ocorrencia"),
+  status_reason: z.string().optional().or(z.literal("")),
   opened_at: z.string().min(1, "Informe a data de abertura"),
   closed_at: z.string().optional().or(z.literal(""))
 }).superRefine((value, ctx) => {
@@ -54,6 +55,7 @@ export function OccurrenceDialog({
       priority_id: occurrence?.priority.id ?? 0,
       status: (occurrence?.status as FormValues["status"]) ?? "Aberta",
       description: occurrence?.description ?? "",
+      status_reason: "",
       opened_at: occurrence ? toInputDateTime(occurrence.opened_at) : getCurrentLocalDateTime(),
       closed_at: occurrence?.closed_at ? toInputDateTime(occurrence.closed_at) : ""
     }
@@ -61,6 +63,13 @@ export function OccurrenceDialog({
 
   const occurrenceId = occurrence?.id;
   const availableStatuses = occurrence ? occurrenceStatuses : ["Aberta"];
+  const watchedStatus = useWatch({ control, name: "status" });
+  const requiresStatusReason = Boolean(
+    occurrence &&
+    watchedStatus &&
+    watchedStatus !== occurrence.status &&
+    ["Fechada", "Cancelada"].includes(watchedStatus)
+  );
 
   useEffect(() => {
     reset({
@@ -69,6 +78,7 @@ export function OccurrenceDialog({
       priority_id: occurrence?.priority.id ?? 0,
       status: (occurrence?.status as FormValues["status"]) ?? "Aberta",
       description: occurrence?.description ?? "",
+      status_reason: "",
       opened_at: occurrence ? toInputDateTime(occurrence.opened_at) : getCurrentLocalDateTime(),
       closed_at: occurrence?.closed_at ? toInputDateTime(occurrence.closed_at) : ""
     });
@@ -156,6 +166,28 @@ export function OccurrenceDialog({
                 )}
               />
             </Grid>
+            {requiresStatusReason ? (
+              <Grid size={{ xs: 12 }}>
+                <Controller
+                  name="status_reason"
+                  control={control}
+                  rules={{
+                    validate: (value) => !requiresStatusReason || Boolean(value?.trim()) || "Informe o motivo da alteracao de status"
+                  }}
+                  render={({ field }) => (
+                    <TextField
+                      {...field}
+                      fullWidth
+                      multiline
+                      minRows={3}
+                      label="Motivo da alteracao"
+                      error={!!errors.status_reason}
+                      helperText={errors.status_reason?.message}
+                    />
+                  )}
+                />
+              </Grid>
+            ) : null}
           </Grid>
         </Stack>
       </DialogContent>
