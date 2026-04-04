@@ -10,7 +10,7 @@ import { useAuth } from "./modules/auth/AuthContext";
 import { LoginScreen } from "./modules/auth/LoginScreen";
 import { fetchDashboardCounts } from "./modules/dashboard/api";
 import { DashboardCards } from "./modules/dashboard/DashboardCards";
-import { createOccurrence, deleteOccurrence, fetchCategories, fetchOccurrence, fetchOccurrences, fetchPriorities, updateOccurrence } from "./modules/occurrences/api";
+import { createOccurrence, deleteOccurrence, fetchCategories, fetchOccurrence, fetchOccurrences, fetchPriorities, updateOccurrence, uploadOccurrenceAttachment } from "./modules/occurrences/api";
 import { OccurrenceDialog } from "./modules/occurrences/OccurrenceDialog";
 import { OccurrenceHistory } from "./modules/occurrences/OccurrenceHistory";
 import { OccurrencePage } from "./modules/occurrences/OccurrencePage";
@@ -148,7 +148,10 @@ export default function App() {
     }
   }
 
-  async function submitOccurrence(values: OccurrenceFormValues) {
+  async function submitOccurrence(
+    values: OccurrenceFormValues,
+    attachments: { opening: File | null; closing: File | null },
+  ) {
     setDialogLoading(true);
     try {
       const basePayload = {
@@ -182,10 +185,16 @@ export default function App() {
       }
 
       if (selectedOccurrence) {
-        await updateOccurrence(selectedOccurrence.id, payload);
+        const updatedOccurrence = await updateOccurrence(selectedOccurrence.id, payload);
+        if (attachments.closing) {
+          await uploadOccurrenceAttachment(updatedOccurrence.id, "closing", attachments.closing);
+        }
         setOccurrenceMessage("Ocorrencia atualizada com sucesso.");
       } else {
-        await createOccurrence(basePayload);
+        const createdOccurrence = await createOccurrence(basePayload);
+        if (attachments.opening) {
+          await uploadOccurrenceAttachment(createdOccurrence.id, "opening", attachments.opening);
+        }
         setOccurrenceMessage("Ocorrencia criada com sucesso.");
       }
 

@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, Query, status
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, File, Query, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -10,7 +12,7 @@ from app.core.pagination import PaginatedResponse
 from app.models.occurrence import Occurrence
 from app.models.user import User
 from app.schemas.occurrence import OccurrenceCreate, OccurrenceResponse, OccurrenceUpdate
-from app.services.crud import create_occurrence, delete_entity, get_or_404, update_occurrence
+from app.services.crud import create_occurrence, delete_entity, get_or_404, save_occurrence_attachment, update_occurrence
 
 
 router = APIRouter(prefix="/occurrences", tags=["occurrences"], dependencies=[Depends(require_current_user)])
@@ -29,6 +31,7 @@ async def list_occurrences(
             selectinload(Occurrence.category),
             selectinload(Occurrence.priority),
             selectinload(Occurrence.history_entries),
+            selectinload(Occurrence.attachments),
         )
         .order_by(Occurrence.opened_at.desc(), Occurrence.id.desc())
     )
@@ -68,6 +71,7 @@ async def create_occurrence_endpoint(
             selectinload(Occurrence.category),
             selectinload(Occurrence.priority),
             selectinload(Occurrence.history_entries),
+            selectinload(Occurrence.attachments),
         )
         .where(Occurrence.id == entity.id)
     )
@@ -82,6 +86,7 @@ async def get_occurrence(entity_id: int, session: AsyncSession = Depends(get_db)
             selectinload(Occurrence.category),
             selectinload(Occurrence.priority),
             selectinload(Occurrence.history_entries),
+            selectinload(Occurrence.attachments),
         )
         .where(Occurrence.id == entity_id)
     )
@@ -106,6 +111,7 @@ async def update_occurrence_endpoint(
             selectinload(Occurrence.category),
             selectinload(Occurrence.priority),
             selectinload(Occurrence.history_entries),
+            selectinload(Occurrence.attachments),
         )
         .where(Occurrence.id == entity_id)
     )
@@ -116,3 +122,26 @@ async def update_occurrence_endpoint(
 async def delete_occurrence(entity_id: int, session: AsyncSession = Depends(get_db), _: User = Depends(require_current_user)):
     entity = await get_or_404(session, Occurrence, entity_id)
     await delete_entity(session, entity)
+
+
+@router.post("/{entity_id}/attachments/{phase}", response_model=OccurrenceResponse)
+async def upload_occurrence_attachment(
+    entity_id: int,
+    phase: str,
+    file: Annotated[UploadFile, File(...)],
+    session: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_current_user),
+):
+    entity = await get_or_404(session, Occurrence, entity_id)
+    await save_occurrence_attachment(session, entity, phase, file, current_user)
+    result = await session.execute(
+        select(Occurrence)
+        .options(
+            selectinload(Occurrence.category),
+            selectinload(Occurrence.priority),
+            selectinload(Occurrence.history_entries),
+            selectinload(Occurrence.attachments),
+        )
+        .where(Occurrence.id == entity_id)
+    )
+    return OccurrenceResponse.model_validate(result.scalar_one())

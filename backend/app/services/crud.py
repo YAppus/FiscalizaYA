@@ -1,6 +1,8 @@
+from pathlib import Path
+from uuid import uuid4
 from datetime import UTC, datetime
 
-from fastapi import HTTPException, status
+from fastapi import HTTPException, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -8,6 +10,7 @@ from app.core.validators import validate_cpf
 from app.models.category import Category
 from app.models.history import History
 from app.models.occurrence import Occurrence, OccurrenceStatus
+from app.models.occurrence_attachment import OccurrenceAttachment
 from app.models.priority import Priority
 from app.models.user import User
 from app.schemas.category import CategoryCreate, CategoryUpdate
@@ -31,6 +34,8 @@ ALLOWED_STATUS_TRANSITIONS = {
     OccurrenceStatus.FECHADA.value: set(),
     OccurrenceStatus.CANCELADA.value: set(),
 }
+
+ATTACHMENT_STORAGE_DIR = Path(__file__).resolve().parents[2] / "storage" / "occurrence_attachments"
 
 
 async def get_or_404(session: AsyncSession, model, entity_id):
@@ -379,3 +384,71 @@ async def update_occurrence(session: AsyncSession, entity: Occurrence, payload: 
 async def delete_entity(session: AsyncSession, entity) -> None:
     await session.delete(entity)
     await session.commit()
+
+
+def _validate_pdf_upload(file: UploadFile | None) -> None:
+    if file is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Arquivo PDF ausente")
+    filename = (file.filename or "").strip()
+    if not filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Apenas arquivos PDF sao permitidos")
+    if file.content_type not in {"application/pdf", "application/octet-stream"}:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tipo de arquivo invalido para PDF")
+
+
+def _validate_attachment_phase(occurrence: Occurrence, phase: str) -> None:
+    if phase == "opening":
+        if occurrence.status != OccurrenceStatus.ABERTA.value:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="O anexo de abertura so pode ser enviado para ocorrencias abertas")
+        return
+    if phase == "closing":
+        if occurrence.status not in {OccurrenceStatus.FECHADA.value, OccurrenceStatus.CANCELADA.value}:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="O anexo de encerramento so pode ser enviado para ocorrencias fechadas ou canceladas")
+        return
+    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Fase de anexo invalida")
+
+
+async def save_occurrence_attachment(
+    session: AsyncSession,
+    occurrence: Occurrence,
+    phase: str,
+    file: UploadFile,
+    current_user: User | None,
+) -> OccurrenceAttachment:
+    _validate_attachment_phase(occurrence, phase)
+    _validate_pdf_upload(file)
+
+    result = await session.execute(
+        select(OccurrenceAttachment).where(
+            OccurrenceAttachment.occurrence_id == occurrence.id,
+            OccurrenceAttachment.phase == phase,
+        )
+    )
+    existing_attachment = result.scalar_one_or_none()
+    if existing_attachment:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Ja existe um PDF anexado para esta etapa da ocorrencia",
+        )
+
+    ATTACHMENT_STORAGE_DIR.mkdir(parents=True, exist_ok=True)
+    original_filename = file.filename or "documento.pdf"
+    stored_filename = f"{occurrence.id}_{phase}_{uuid4().hex}.pdf"
+    file_path = ATTACHMENT_STORAGE_DIR / stored_filename
+    content = await file.read()
+
+    with file_path.open("wb") as output_file:
+        output_file.write(content)
+
+    attachment = OccurrenceAttachment(
+        occurrence_id=occurrence.id,
+        phase=phase,
+        original_filename=original_filename,
+        stored_filename=stored_filename,
+        content_type=file.content_type or "application/pdf",
+        uploaded_by_user_id=current_user.id if current_user else None,
+    )
+    session.add(attachment)
+    await session.commit()
+    await session.refresh(attachment)
+    return attachment

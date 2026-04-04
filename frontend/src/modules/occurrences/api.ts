@@ -40,6 +40,18 @@ export async function updateOccurrence(id: number, payload: Partial<OccurrencePa
 }
 
 
+export async function uploadOccurrenceAttachment(id: number, phase: "opening" | "closing", file: File) {
+  const formData = new FormData();
+  formData.append("file", file);
+  const response = await api.post<Occurrence>(`/occurrences/${id}/attachments/${phase}`, formData, {
+    headers: {
+      "Content-Type": "multipart/form-data"
+    }
+  });
+  return response.data;
+}
+
+
 export async function deleteOccurrence(id: number) {
   await api.delete(`/occurrences/${id}`);
 }

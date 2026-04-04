@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { ChangeEvent, useEffect, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Alert, Button, Dialog, DialogActions, DialogContent, DialogTitle, Grid, MenuItem, Stack, TextField } from "@mui/material";
 import { Controller, useForm, useWatch } from "react-hook-form";
@@ -33,7 +33,7 @@ type OccurrenceDialogProps = {
   loading: boolean;
   error: string | null;
   onClose: () => void;
-  onSubmit: (values: FormValues) => Promise<void>;
+  onSubmit: (values: FormValues, attachments: { opening: File | null; closing: File | null }) => Promise<void>;
 };
 
 
@@ -47,6 +47,8 @@ export function OccurrenceDialog({
   onClose,
   onSubmit
 }: OccurrenceDialogProps) {
+  const [openingAttachment, setOpeningAttachment] = useState<File | null>(null);
+  const [closingAttachment, setClosingAttachment] = useState<File | null>(null);
   const { control, handleSubmit, reset, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
@@ -70,8 +72,12 @@ export function OccurrenceDialog({
     watchedStatus !== occurrence.status &&
     ["Fechada", "Cancelada"].includes(watchedStatus)
   );
+  const openingAttachmentName = occurrence?.attachments.find((item) => item.phase === "opening")?.original_filename;
+  const closingAttachmentName = occurrence?.attachments.find((item) => item.phase === "closing")?.original_filename;
 
   useEffect(() => {
+    setOpeningAttachment(null);
+    setClosingAttachment(null);
     reset({
       cpf: occurrence?.cpf ?? "",
       category_id: occurrence?.category.id ?? 0,
@@ -166,6 +172,23 @@ export function OccurrenceDialog({
                 )}
               />
             </Grid>
+            {!occurrence ? (
+              <Grid size={{ xs: 12 }}>
+                <TextField
+                  fullWidth
+                  type="file"
+                  label="PDF da abertura"
+                  helperText={openingAttachment ? openingAttachment.name : "Opcional. Envie no maximo um PDF na abertura."}
+                  InputLabelProps={{ shrink: true }}
+                  inputProps={{ accept: "application/pdf,.pdf" }}
+                  onChange={(event) => handleAttachmentChange(event, setOpeningAttachment)}
+                />
+              </Grid>
+            ) : openingAttachmentName ? (
+              <Grid size={{ xs: 12 }}>
+                <Alert severity="info">PDF de abertura anexado: {openingAttachmentName}</Alert>
+              </Grid>
+            ) : null}
             {requiresStatusReason ? (
               <Grid size={{ xs: 12 }}>
                 <Controller
@@ -188,12 +211,34 @@ export function OccurrenceDialog({
                 />
               </Grid>
             ) : null}
+            {requiresStatusReason ? (
+              <Grid size={{ xs: 12 }}>
+                {closingAttachmentName ? (
+                  <Alert severity="info" sx={{ mb: 1.5 }}>
+                    PDF de encerramento anexado: {closingAttachmentName}
+                  </Alert>
+                ) : null}
+                <TextField
+                  fullWidth
+                  type="file"
+                  label="PDF do encerramento"
+                  helperText={closingAttachment ? closingAttachment.name : "Opcional. Envie no maximo um PDF ao fechar ou cancelar."}
+                  InputLabelProps={{ shrink: true }}
+                  inputProps={{ accept: "application/pdf,.pdf" }}
+                  onChange={(event) => handleAttachmentChange(event, setClosingAttachment)}
+                />
+              </Grid>
+            ) : null}
           </Grid>
         </Stack>
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>Cancelar</Button>
-        <Button variant="contained" onClick={handleSubmit(onSubmit)} disabled={loading}>
+        <Button
+          variant="contained"
+          onClick={handleSubmit((values) => onSubmit(values, { opening: openingAttachment, closing: closingAttachment }))}
+          disabled={loading}
+        >
           {loading ? "Salvando..." : "Salvar"}
         </Button>
       </DialogActions>
@@ -212,4 +257,18 @@ function getCurrentLocalDateTime() {
   const now = new Date();
   const localDate = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
   return localDate.toISOString().slice(0, 16);
+}
+
+function handleAttachmentChange(
+  event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+  setAttachment: (file: File | null) => void,
+) {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0] ?? null;
+  if (file && file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
+    setAttachment(null);
+    input.value = "";
+    return;
+  }
+  setAttachment(file);
 }

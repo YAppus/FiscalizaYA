@@ -6,6 +6,7 @@ from app.models.occurrence import OccurrenceStatus
 from app.core.sanitizers import sanitize_text
 from app.schemas.category import CategoryResponse
 from app.schemas.history import HistoryResponse
+from app.schemas.occurrence_attachment import OccurrenceAttachmentResponse
 from app.schemas.priority import PriorityResponse
 
 
@@ -92,3 +93,4 @@ class OccurrenceResponse(BaseModel):
     category: CategoryResponse
     priority: PriorityResponse
     history_entries: list[HistoryResponse] = []
+    attachments: list[OccurrenceAttachmentResponse] = []

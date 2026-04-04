@@ -21,6 +21,14 @@ export type HistoryEntry = {
   changed_at: string;
 };
 
+export type OccurrenceAttachment = {
+  id: number;
+  phase: "opening" | "closing" | string;
+  original_filename: string;
+  content_type: string;
+  created_at: string;
+};
+
 export type Occurrence = {
   id: number;
   cpf: string;
@@ -31,6 +39,7 @@ export type Occurrence = {
   category: Category;
   priority: Priority;
   history_entries: HistoryEntry[];
+  attachments: OccurrenceAttachment[];
 };
 
 export type OccurrencePayload = {
