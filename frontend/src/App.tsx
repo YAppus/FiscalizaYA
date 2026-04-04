@@ -8,13 +8,15 @@ import { z } from "zod";
 
 import { useAuth } from "./modules/auth/AuthContext";
 import { LoginScreen } from "./modules/auth/LoginScreen";
-import { fetchDashboardCounts } from "./modules/dashboard/api";
+import { fetchDashboardCounts, fetchDashboardSolicitationPeriods } from "./modules/dashboard/api";
 import { DashboardCards } from "./modules/dashboard/DashboardCards";
+import type { DashboardSolicitationPeriod } from "./modules/dashboard/types";
 import { createOccurrence, deleteOccurrence, fetchCategories, fetchOccurrence, fetchOccurrences, fetchPriorities, updateOccurrence, uploadOccurrenceAttachment } from "./modules/occurrences/api";
 import { OccurrenceDialog } from "./modules/occurrences/OccurrenceDialog";
 import { OccurrenceHistory } from "./modules/occurrences/OccurrenceHistory";
 import { OccurrencePage } from "./modules/occurrences/OccurrencePage";
 import type { Category, Occurrence, Priority } from "./modules/occurrences/types";
+import { ThemeModeToggle } from "./shared/components/ThemeModeToggle";
 import type { FilterCondition } from "./shared/types";
 
 const loginSchema = z.object({
@@ -42,6 +44,7 @@ export default function App() {
   const { user, loading, error, message, login, logout, clearFeedback } = useAuth();
   const [tab, setTab] = useState<AppTab>("dashboard");
   const [dashboardCounts, setDashboardCounts] = useState<{ status: string; total: number }[]>([]);
+  const [solicitationPeriods, setSolicitationPeriods] = useState<DashboardSolicitationPeriod[]>([]);
   const [occurrences, setOccurrences] = useState<Occurrence[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [priorities, setPriorities] = useState<Priority[]>([]);
@@ -78,9 +81,16 @@ export default function App() {
       return;
     }
 
-    void loadDashboard();
     void loadOccurrences();
   }, [user, paginationModel.page, paginationModel.pageSize, activeFilters]);
+
+  useEffect(() => {
+    if (!user) {
+      return;
+    }
+
+    void loadDashboard();
+  }, [user, categories]);
 
   async function loadBootstrapData() {
     try {
@@ -94,7 +104,12 @@ export default function App() {
 
   async function loadDashboard() {
     try {
-      setDashboardCounts(await fetchDashboardCounts());
+      const [nextCounts, nextSolicitationPeriods] = await Promise.all([
+        fetchDashboardCounts(),
+        fetchDashboardSolicitationPeriods(categories)
+      ]);
+      setDashboardCounts(nextCounts);
+      setSolicitationPeriods(nextSolicitationPeriods);
     } catch (nextError) {
       setOccurrenceError(extractErrorMessage(nextError, "Nao foi possivel carregar o dashboard."));
     }
@@ -221,6 +236,18 @@ export default function App() {
     setPaginationModel((current) => ({ ...current, page: 0 }));
   }
 
+  function focusOccurrencesByStatus(status: string) {
+    const nextFilter: FilterCondition = {
+      field: "status",
+      operator: "eq",
+      value: status
+    };
+    setTab("occurrences");
+    setFilterDraft(nextFilter);
+    setActiveFilters([nextFilter]);
+    setPaginationModel((current) => ({ ...current, page: 0 }));
+  }
+
   function clearAllFeedback() {
     clearFeedback();
     setOccurrenceError(null);
@@ -240,15 +267,31 @@ export default function App() {
   }
 
   return (
-    <Box sx={{ minHeight: "100vh", background: "linear-gradient(180deg, #f4f7fb 0%, #eef4ff 100%)" }}>
-      <AppBar position="sticky" color="transparent" elevation={0} sx={{ backdropFilter: "blur(16px)", borderBottom: "1px solid rgba(11,95,255,0.12)" }}>
+    <Box
+      sx={(theme) => ({
+        minHeight: "100vh",
+        background: theme.palette.mode === "dark"
+          ? "radial-gradient(circle at top left, rgba(75,163,255,0.18), transparent 28%), linear-gradient(180deg, #08111f 0%, #0c1729 100%)"
+          : "linear-gradient(180deg, #f4f7fb 0%, #eef4ff 100%)"
+      })}
+    >
+      <AppBar
+        position="sticky"
+        color="transparent"
+        elevation={0}
+        sx={(theme) => ({
+          backdropFilter: "blur(16px)",
+          borderBottom: `1px solid ${theme.palette.mode === "dark" ? "rgba(255,255,255,0.08)" : "rgba(11,95,255,0.12)"}`
+        })}
+      >
         <Toolbar sx={{ px: { xs: 2, md: 4 } }}>
           <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" alignItems={{ xs: "flex-start", sm: "center" }} sx={{ width: "100%" }} spacing={1.5}>
             <Box>
               <Typography variant="h5">FiscaTeste</Typography>
               <Typography color="text.secondary">Painel de ocorrencias e acompanhamento por status</Typography>
             </Box>
-            <Stack direction="row" spacing={1}>
+            <Stack direction={{ xs: "column", md: "row" }} spacing={1} alignItems={{ xs: "stretch", md: "center" }}>
+              <ThemeModeToggle />
               <Button variant="outlined" startIcon={<RefreshRoundedIcon />} onClick={() => { void loadDashboard(); void loadOccurrences(); }}>
                 Atualizar
               </Button>
@@ -262,7 +305,16 @@ export default function App() {
 
       <Container maxWidth="xl" sx={{ py: { xs: 3, md: 5 } }}>
         <Stack spacing={3}>
-          <Card elevation={0} sx={{ borderRadius: 5, background: "linear-gradient(135deg, #0b5fff 0%, #16367a 100%)", color: "white" }}>
+          <Card
+            elevation={0}
+            sx={(theme) => ({
+              borderRadius: 5,
+              background: theme.palette.mode === "dark"
+                ? "linear-gradient(135deg, #0c234f 0%, #112f6e 100%)"
+                : "linear-gradient(135deg, #0b5fff 0%, #16367a 100%)",
+              color: "white"
+            })}
+          >
             <CardContent sx={{ p: { xs: 3, md: 4 } }}>
               <Grid container spacing={2} alignItems="center">
                 <Grid size={{ xs: 12, md: 8 }}>
@@ -289,7 +341,11 @@ export default function App() {
           </Card>
 
           {tab === "dashboard" ? (
-            <DashboardCards counts={dashboardCounts} />
+            <DashboardCards
+              counts={dashboardCounts}
+              solicitationPeriods={solicitationPeriods}
+              onSelectStatus={focusOccurrencesByStatus}
+            />
           ) : (
             <OccurrencePage
               categories={categories}

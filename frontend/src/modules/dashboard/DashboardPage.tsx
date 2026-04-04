@@ -2,6 +2,7 @@ import { Card, CardContent, Grid, Tab, Tabs, Typography } from "@mui/material";
 import type { ReactNode } from "react";
 
 import { DashboardCards } from "./DashboardCards";
+import type { DashboardSolicitationPeriod } from "./types";
 
 
 type AppTab = "dashboard" | "occurrences";
@@ -10,12 +11,14 @@ type DashboardPageProps = {
   userName: string;
   tab: AppTab;
   counts: { status: string; total: number }[];
+  solicitationPeriods: DashboardSolicitationPeriod[];
+  onSelectStatus: (status: string) => void;
   onTabChange: (value: AppTab) => void;
   children?: ReactNode;
 };
 
 
-export function DashboardPage({ userName, tab, counts, onTabChange, children }: DashboardPageProps) {
+export function DashboardPage({ userName, tab, counts, solicitationPeriods, onSelectStatus, onTabChange, children }: DashboardPageProps) {
   return (
     <>
       <Card elevation={0} sx={{ borderRadius: 5, background: "linear-gradient(135deg, #0b5fff 0%, #16367a 100%)", color: "white" }}>
@@ -44,7 +47,7 @@ export function DashboardPage({ userName, tab, counts, onTabChange, children }: 
         </CardContent>
       </Card>
 
-      {tab === "dashboard" ? <DashboardCards counts={counts} /> : children}
+      {tab === "dashboard" ? <DashboardCards counts={counts} solicitationPeriods={solicitationPeriods} onSelectStatus={onSelectStatus} /> : children}
     </>
   );
 }

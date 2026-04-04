@@ -5,7 +5,7 @@ const colorMap: Record<string, "default" | "info" | "warning" | "success" | "err
   Aberta: "default",
   "Em Analise": "info",
   "Em Andamento": "warning",
-  Resolvida: "success",
+  Resolvida: "warning",
   Fechada: "success",
   Cancelada: "error"
 };
