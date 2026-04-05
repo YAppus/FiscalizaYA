@@ -1,22 +1,22 @@
-import RefreshRoundedIcon from "@mui/icons-material/RefreshRounded";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Alert, AppBar, Box, Button, Card, CardContent, Container, Grid, Snackbar, Stack, Tab, Tabs, Toolbar, Typography } from "@mui/material";
+import { Box, Container, Stack } from "@mui/material";
 import type { GridPaginationModel } from "@mui/x-data-grid";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
+import { AppHeader } from "./modules/app/AppHeader";
+import { FeedbackSnackbars } from "./modules/app/FeedbackSnackbars";
 import { useAuth } from "./modules/auth/AuthContext";
 import { LoginScreen } from "./modules/auth/LoginScreen";
-import { fetchDashboardCounts, fetchDashboardSolicitationPeriods } from "./modules/dashboard/api";
-import { DashboardCards } from "./modules/dashboard/DashboardCards";
+import { fetchDashboardOverview } from "./modules/dashboard/api";
+import { DashboardPage } from "./modules/dashboard/DashboardPage";
 import type { DashboardSolicitationPeriod } from "./modules/dashboard/types";
 import { createOccurrence, deleteOccurrence, fetchCategories, fetchOccurrence, fetchOccurrences, fetchPriorities, updateOccurrence, uploadOccurrenceAttachment } from "./modules/occurrences/api";
 import { OccurrenceDialog } from "./modules/occurrences/OccurrenceDialog";
 import { OccurrenceHistory } from "./modules/occurrences/OccurrenceHistory";
 import { OccurrencePage } from "./modules/occurrences/OccurrencePage";
 import type { Category, Occurrence, Priority } from "./modules/occurrences/types";
-import { ThemeModeToggle } from "./shared/components/ThemeModeToggle";
 import type { FilterCondition } from "./shared/types";
 
 const loginSchema = z.object({
@@ -90,7 +90,7 @@ export default function App() {
     }
 
     void loadDashboard();
-  }, [user, categories]);
+  }, [user]);
 
   async function loadBootstrapData() {
     try {
@@ -104,12 +104,9 @@ export default function App() {
 
   async function loadDashboard() {
     try {
-      const [nextCounts, nextSolicitationPeriods] = await Promise.all([
-        fetchDashboardCounts(),
-        fetchDashboardSolicitationPeriods(categories)
-      ]);
-      setDashboardCounts(nextCounts);
-      setSolicitationPeriods(nextSolicitationPeriods);
+      const overview = await fetchDashboardOverview();
+      setDashboardCounts(overview.counts);
+      setSolicitationPeriods(overview.solicitationPeriods);
     } catch (nextError) {
       setOccurrenceError(extractErrorMessage(nextError, "Nao foi possivel carregar o dashboard."));
     }
@@ -275,78 +272,18 @@ export default function App() {
           : "linear-gradient(180deg, #f4f7fb 0%, #eef4ff 100%)"
       })}
     >
-      <AppBar
-        position="sticky"
-        color="transparent"
-        elevation={0}
-        sx={(theme) => ({
-          backdropFilter: "blur(16px)",
-          borderBottom: `1px solid ${theme.palette.mode === "dark" ? "rgba(255,255,255,0.08)" : "rgba(11,95,255,0.12)"}`
-        })}
-      >
-        <Toolbar sx={{ px: { xs: 2, md: 4 } }}>
-          <Stack direction={{ xs: "column", sm: "row" }} justifyContent="space-between" alignItems={{ xs: "flex-start", sm: "center" }} sx={{ width: "100%" }} spacing={1.5}>
-            <Box>
-              <Typography variant="h5">FiscaTeste</Typography>
-              <Typography color="text.secondary">Painel de ocorrencias e acompanhamento por status</Typography>
-            </Box>
-            <Stack direction={{ xs: "column", md: "row" }} spacing={1} alignItems={{ xs: "stretch", md: "center" }}>
-              <ThemeModeToggle />
-              <Button variant="outlined" startIcon={<RefreshRoundedIcon />} onClick={() => { void loadDashboard(); void loadOccurrences(); }}>
-                Atualizar
-              </Button>
-              <Button variant="contained" color="secondary" onClick={() => void logout()}>
-                Sair
-              </Button>
-            </Stack>
-          </Stack>
-        </Toolbar>
-      </AppBar>
+      <AppHeader onRefresh={() => { void loadDashboard(); void loadOccurrences(); }} onLogout={() => void logout()} />
 
       <Container maxWidth="xl" sx={{ py: { xs: 3, md: 5 } }}>
         <Stack spacing={3}>
-          <Card
-            elevation={0}
-            sx={(theme) => ({
-              borderRadius: 5,
-              background: theme.palette.mode === "dark"
-                ? "linear-gradient(135deg, #0c234f 0%, #112f6e 100%)"
-                : "linear-gradient(135deg, #0b5fff 0%, #16367a 100%)",
-              color: "white"
-            })}
+          <DashboardPage
+            userName={user.full_name}
+            tab={tab}
+            counts={dashboardCounts}
+            solicitationPeriods={solicitationPeriods}
+            onSelectStatus={focusOccurrencesByStatus}
+            onTabChange={setTab}
           >
-            <CardContent sx={{ p: { xs: 3, md: 4 } }}>
-              <Grid container spacing={2} alignItems="center">
-                <Grid size={{ xs: 12, md: 8 }}>
-                  <Typography variant="h4">Bem-vindo, {user.full_name}</Typography>
-                  <Typography sx={{ opacity: 0.88, mt: 1.2 }}>
-                    Use o dashboard para acompanhar o fluxo e a grade para operar o CRUD com filtros, paginacao e historico.
-                  </Typography>
-                </Grid>
-                <Grid size={{ xs: 12, md: 4 }}>
-                  <Tabs
-                    value={tab}
-                    onChange={(_, value: AppTab) => setTab(value)}
-                    textColor="inherit"
-                    indicatorColor="secondary"
-                    variant="fullWidth"
-                    sx={{ bgcolor: "rgba(255,255,255,0.08)", borderRadius: 3 }}
-                  >
-                    <Tab label="Dashboard" value="dashboard" />
-                    <Tab label="Ocorrencias" value="occurrences" />
-                  </Tabs>
-                </Grid>
-              </Grid>
-            </CardContent>
-          </Card>
-
-          {tab === "dashboard" ? (
-            <DashboardCards
-              counts={dashboardCounts}
-              solicitationPeriods={solicitationPeriods}
-              onSelectStatus={focusOccurrencesByStatus}
-            />
-          ) : (
             <OccurrencePage
               categories={categories}
               priorities={priorities}
@@ -367,7 +304,7 @@ export default function App() {
               onOpenHistory={(id) => void handleOpenHistory(id)}
               onDelete={(id) => void handleDelete(id)}
             />
-          )}
+          </DashboardPage>
         </Stack>
       </Container>
 
@@ -387,17 +324,7 @@ export default function App() {
 
       <OccurrenceHistory open={historyOpen} occurrence={historyOccurrence} onClose={() => setHistoryOpen(false)} />
 
-      <Snackbar open={!!message || !!occurrenceMessage} autoHideDuration={3500} onClose={clearAllFeedback}>
-        <Alert severity="success" onClose={clearAllFeedback} variant="filled">
-          {message ?? occurrenceMessage}
-        </Alert>
-      </Snackbar>
-
-      <Snackbar open={!!error || !!occurrenceError} autoHideDuration={4500} onClose={clearAllFeedback}>
-        <Alert severity="error" onClose={clearAllFeedback} variant="filled">
-          {error ?? occurrenceError}
-        </Alert>
-      </Snackbar>
+      <FeedbackSnackbars successMessage={message ?? occurrenceMessage} errorMessage={error ?? occurrenceError} onClose={clearAllFeedback} />
     </Box>
   );
 }

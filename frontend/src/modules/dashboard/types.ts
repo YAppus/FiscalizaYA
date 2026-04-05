@@ -17,3 +17,8 @@ export type DashboardSolicitationPeriod = {
   total: number;
   slices: DashboardStatusSlice[];
 };
+
+export type DashboardOverview = {
+  counts: StatusCount[];
+  solicitationPeriods: DashboardSolicitationPeriod[];
+};
