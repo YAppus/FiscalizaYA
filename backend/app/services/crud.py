@@ -36,6 +36,7 @@ ALLOWED_STATUS_TRANSITIONS = {
 }
 
 ATTACHMENT_STORAGE_DIR = Path(__file__).resolve().parents[2] / "storage" / "occurrence_attachments"
+MAX_PDF_ATTACHMENT_SIZE_BYTES = 1024 * 1024
 
 
 async def get_or_404(session: AsyncSession, model, entity_id):
@@ -396,6 +397,14 @@ def _validate_pdf_upload(file: UploadFile | None) -> None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tipo de arquivo invalido para PDF")
 
 
+def _validate_pdf_size(content: bytes) -> None:
+    if len(content) > MAX_PDF_ATTACHMENT_SIZE_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="O arquivo PDF deve ter no maximo 1 MB",
+        )
+
+
 def _validate_attachment_phase(occurrence: Occurrence, phase: str) -> None:
     if phase == "opening":
         if occurrence.status != OccurrenceStatus.ABERTA.value:
@@ -436,6 +445,7 @@ async def save_occurrence_attachment(
     stored_filename = f"{occurrence.id}_{phase}_{uuid4().hex}.pdf"
     file_path = ATTACHMENT_STORAGE_DIR / stored_filename
     content = await file.read()
+    _validate_pdf_size(content)
 
     with file_path.open("wb") as output_file:
         output_file.write(content)

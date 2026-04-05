@@ -7,6 +7,7 @@ import { z } from "zod";
 import type { Category, Occurrence, Priority } from "./types";
 import { occurrenceStatuses } from "./types";
 
+const MAX_PDF_ATTACHMENT_SIZE_BYTES = 1024 * 1024;
 
 const schema = z.object({
   cpf: z.string().min(11, "Informe um CPF valido"),
@@ -49,6 +50,8 @@ export function OccurrenceDialog({
 }: OccurrenceDialogProps) {
   const [openingAttachment, setOpeningAttachment] = useState<File | null>(null);
   const [closingAttachment, setClosingAttachment] = useState<File | null>(null);
+  const [openingAttachmentError, setOpeningAttachmentError] = useState<string | null>(null);
+  const [closingAttachmentError, setClosingAttachmentError] = useState<string | null>(null);
   const { control, handleSubmit, reset, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
@@ -78,6 +81,8 @@ export function OccurrenceDialog({
   useEffect(() => {
     setOpeningAttachment(null);
     setClosingAttachment(null);
+    setOpeningAttachmentError(null);
+    setClosingAttachmentError(null);
     reset({
       cpf: occurrence?.cpf ?? "",
       category_id: occurrence?.category.id ?? 0,
@@ -178,10 +183,11 @@ export function OccurrenceDialog({
                   fullWidth
                   type="file"
                   label="PDF da abertura"
-                  helperText={openingAttachment ? openingAttachment.name : "Opcional. Envie no maximo um PDF na abertura."}
+                  error={!!openingAttachmentError}
+                  helperText={openingAttachmentError ?? openingAttachment?.name ?? "Opcional. Envie no maximo um PDF na abertura (ate 1 MB)."}
                   InputLabelProps={{ shrink: true }}
                   inputProps={{ accept: "application/pdf,.pdf" }}
-                  onChange={(event) => handleAttachmentChange(event, setOpeningAttachment)}
+                  onChange={(event) => handleAttachmentChange(event, setOpeningAttachment, setOpeningAttachmentError)}
                 />
               </Grid>
             ) : openingAttachmentName ? (
@@ -222,10 +228,11 @@ export function OccurrenceDialog({
                   fullWidth
                   type="file"
                   label="PDF do encerramento"
-                  helperText={closingAttachment ? closingAttachment.name : "Opcional. Envie no maximo um PDF ao fechar ou cancelar."}
+                  error={!!closingAttachmentError}
+                  helperText={closingAttachmentError ?? closingAttachment?.name ?? "Opcional. Envie no maximo um PDF ao fechar ou cancelar (ate 1 MB)."}
                   InputLabelProps={{ shrink: true }}
                   inputProps={{ accept: "application/pdf,.pdf" }}
-                  onChange={(event) => handleAttachmentChange(event, setClosingAttachment)}
+                  onChange={(event) => handleAttachmentChange(event, setClosingAttachment, setClosingAttachmentError)}
                 />
               </Grid>
             ) : null}
@@ -262,11 +269,22 @@ function getCurrentLocalDateTime() {
 function handleAttachmentChange(
   event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
   setAttachment: (file: File | null) => void,
+  setAttachmentError: (message: string | null) => void,
 ) {
   const input = event.target as HTMLInputElement;
   const file = input.files?.[0] ?? null;
+  setAttachmentError(null);
+
+  if (file && file.size > MAX_PDF_ATTACHMENT_SIZE_BYTES) {
+    setAttachment(null);
+    setAttachmentError("O arquivo PDF deve ter no maximo 1 MB");
+    input.value = "";
+    return;
+  }
+
   if (file && file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
     setAttachment(null);
+    setAttachmentError("Apenas arquivos PDF sao permitidos");
     input.value = "";
     return;
   }
