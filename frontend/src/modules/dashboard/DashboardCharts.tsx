@@ -7,7 +7,7 @@ import type { DashboardPeriodKey, DashboardSolicitationPeriod, DashboardStatusSl
 const statusColors: Record<string, string> = {
   Aberta: "#9AA5B1",
   "Em Analise": "#4BA3FF",
-  "Em Andamento": "#FFB020",
+  "Em Andamento": "#16367A",
   Resolvida: "#D8C84A",
   Fechada: "#39A96B",
   Cancelada: "#E25555"

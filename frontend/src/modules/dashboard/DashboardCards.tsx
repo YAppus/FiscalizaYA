@@ -6,7 +6,7 @@ import type { DashboardSolicitationPeriod, StatusCount } from "./types";
 const statusColors: Record<string, string> = {
   Aberta: "#9AA5B1",
   "Em Analise": "#4BA3FF",
-  "Em Andamento": "#FFB020",
+  "Em Andamento": "#16367A",
   Resolvida: "#D8C84A",
   Fechada: "#39A96B",
   Cancelada: "#E25555"
@@ -35,14 +35,14 @@ export function DashboardCards({
           <Grid container spacing={2}>
             {counts.map((item) => (
               <Grid key={item.status} size={{ xs: 12, sm: 6, md: 4 }}>
-                <Card elevation={0} sx={{ borderRadius: 4, height: "100%" }}>
+                <Card elevation={0} sx={{ borderRadius: 2, height: "100%" }}>
                   <ButtonBase
                     onClick={() => onSelectStatus(item.status)}
                     sx={{
                       width: "100%",
                       height: "100%",
                       textAlign: "left",
-                      borderRadius: 4,
+                      borderRadius: 2,
                       alignItems: "stretch"
                     }}
                   >
