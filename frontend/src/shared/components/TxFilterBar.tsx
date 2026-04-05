@@ -39,6 +39,7 @@ export function TxFilterBar({ fields, filter, priorityOptions, categoryOptions, 
           { label: "Igual", value: "eq" },
           { label: "Contem", value: "like" }
         ];
+  const valuePlaceholder = getValuePlaceholder(filter.field);
 
   return (
     <Paper sx={{ p: 2.5, borderRadius: 4 }}>
@@ -47,7 +48,7 @@ export function TxFilterBar({ fields, filter, priorityOptions, categoryOptions, 
           <TextField
             select
             fullWidth
-            label="Campo"
+            label="Buscar por"
             value={filter.field}
             onChange={(event) => {
               const nextField = event.target.value;
@@ -79,7 +80,7 @@ export function TxFilterBar({ fields, filter, priorityOptions, categoryOptions, 
           <TextField
             select
             fullWidth
-            label="Operador"
+            label="Criterio"
             value={filter.operator}
             disabled={isSpecialSelectField || isLikeOnlyField}
             onChange={(event) => onChange({ ...filter, operator: event.target.value as FilterCondition["operator"] })}
@@ -97,11 +98,13 @@ export function TxFilterBar({ fields, filter, priorityOptions, categoryOptions, 
               <TextField
                 select
                 fullWidth
-                label="Valor"
                 value={filter.value}
+                SelectProps={{ displayEmpty: true }}
                 onChange={(event) => onChange({ ...filter, operator: "eq", value: event.target.value })}
               >
-                <MenuItem value="">Selecione</MenuItem>
+                <MenuItem value="" sx={{ color: "text.secondary" }}>
+                  {valuePlaceholder}
+                </MenuItem>
                 {selectOptions.map((option) => (
                   <MenuItem key={option.value} value={option.value}>
                     {option.label}
@@ -111,7 +114,7 @@ export function TxFilterBar({ fields, filter, priorityOptions, categoryOptions, 
             ) : (
               <TextField
                 fullWidth
-                label="Valor"
+                placeholder={valuePlaceholder}
                 value={filter.value}
                 onChange={(event) => onChange({ ...filter, value: event.target.value })}
               />
@@ -127,4 +130,22 @@ export function TxFilterBar({ fields, filter, priorityOptions, categoryOptions, 
       </Grid>
     </Paper>
   );
+}
+
+
+function getValuePlaceholder(field: string) {
+  switch (field) {
+    case "status":
+      return "Selecione um status...";
+    case "category_id":
+      return "Selecione uma categoria...";
+    case "priority_id":
+      return "Selecione uma prioridade...";
+    case "cpf":
+      return "Digite o CPF...";
+    case "description":
+      return "Digite a descricao...";
+    default:
+      return "Informe o valor...";
+  }
 }
