@@ -3,7 +3,7 @@ import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
 import EditRoundedIcon from "@mui/icons-material/EditRounded";
 import HistoryRoundedIcon from "@mui/icons-material/HistoryRounded";
 import { Alert, Box, Button, Card, CardContent, IconButton, Stack, Typography } from "@mui/material";
-import { DataGrid, type GridColDef, type GridPaginationModel } from "@mui/x-data-grid";
+import { DataGrid, type GridColDef, type GridPaginationModel, type GridLocaleText } from "@mui/x-data-grid";
 import { useMemo } from "react";
 
 import { TxFilterBar } from "../../shared/components/TxFilterBar";
@@ -29,6 +29,14 @@ type OccurrencePageProps = {
   onEdit: (id: number) => void;
   onOpenHistory: (id: number) => void;
   onDelete: (id: number) => void;
+};
+
+const gridLocaleText: Partial<GridLocaleText> = {
+  noRowsLabel: "Sem ocorrencias",
+  footerRowSelected: (count) => `${count.toLocaleString()} linha(s) selecionada(s)`,
+  footerTotalRows: "Total de linhas:",
+  paginationRowsPerPage: "Ocorrencias por pagina:",
+  paginationDisplayedRows: ({ from, to, count }) => `${from}-${to} de ${count === -1 ? `mais de ${to}` : count}`
 };
 
 
@@ -147,6 +155,7 @@ export function OccurrencePage({
               onPaginationModelChange={onPaginationModelChange}
               pageSizeOptions={[5, 10, 20, 50]}
               disableRowSelectionOnClick
+              localeText={gridLocaleText}
               sx={{ border: 0 }}
             />
           </Box>
