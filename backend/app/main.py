@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.database import lifespan
 from app.core.errors import register_exception_handlers
-from app.routers import auth, categories, health, history, occurrences, priorities
+from app.routers import auth, categories, dashboard, health, history, occurrences, priorities
 
 
 app = FastAPI(title=settings.app_name, lifespan=lifespan)
@@ -24,5 +24,6 @@ app.include_router(auth.router, prefix="/api/v1/auth", tags=["auth"])
 app.include_router(auth.router, prefix="/auth", tags=["auth"])
 app.include_router(categories.router, prefix="/api/v1")
 app.include_router(priorities.router, prefix="/api/v1")
+app.include_router(dashboard.router, prefix="/api/v1")
 app.include_router(occurrences.router, prefix="/api/v1")
 app.include_router(history.router, prefix="/api/v1")
