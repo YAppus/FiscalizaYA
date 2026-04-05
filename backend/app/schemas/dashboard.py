@@ -23,8 +23,12 @@ class DashboardMttrCategory(BaseModel):
     average_resolution_hours: float
 
 
-class DashboardOverviewResponse(BaseModel):
-    counts: list[DashboardStatusCount]
+class DashboardPeriodMetrics(BaseModel):
     status_distribution: list[DashboardStatusSlice]
     category_distribution: list[DashboardCategorySlice]
     mttr_by_category: list[DashboardMttrCategory]
+
+
+class DashboardOverviewResponse(BaseModel):
+    counts: list[DashboardStatusCount]
+    periods: dict[str, DashboardPeriodMetrics]

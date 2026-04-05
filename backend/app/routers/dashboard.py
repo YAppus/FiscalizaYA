@@ -1,4 +1,5 @@
 from collections import defaultdict
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import func, select
@@ -12,6 +13,7 @@ from app.schemas.dashboard import (
     DashboardCategorySlice,
     DashboardMttrCategory,
     DashboardOverviewResponse,
+    DashboardPeriodMetrics,
     DashboardStatusCount,
     DashboardStatusSlice,
 )
@@ -23,14 +25,14 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"], dependencies=[Depend
 @router.get("/overview", response_model=DashboardOverviewResponse)
 async def get_dashboard_overview(session: AsyncSession = Depends(get_db)):
     counts = await _build_status_counts(session)
-    status_distribution = _build_status_distribution(counts)
-    category_distribution = await _build_category_distribution(session)
-    mttr_by_category = await _build_mttr_by_category(session)
+    periods = {
+        "week": await _build_period_metrics(session, timedelta(days=7)),
+        "month": await _build_period_metrics(session, timedelta(days=30)),
+        "year": await _build_period_metrics(session, timedelta(days=365)),
+    }
     return DashboardOverviewResponse(
         counts=counts,
-        status_distribution=status_distribution,
-        category_distribution=category_distribution,
-        mttr_by_category=mttr_by_category,
+        periods=periods,
     )
 
 
@@ -46,6 +48,15 @@ async def _build_status_counts(session: AsyncSession) -> list[DashboardStatusCou
     ]
 
 
+async def _build_period_metrics(session: AsyncSession, window: timedelta) -> DashboardPeriodMetrics:
+    since = datetime.now(UTC) - window
+    return DashboardPeriodMetrics(
+        status_distribution=await _build_status_distribution_for_period(session, since),
+        category_distribution=await _build_category_distribution(session, since),
+        mttr_by_category=await _build_mttr_by_category(session, since),
+    )
+
+
 def _build_status_distribution(counts: list[DashboardStatusCount]) -> list[DashboardStatusSlice]:
     total = sum(item.total for item in counts)
     return [
@@ -58,7 +69,19 @@ def _build_status_distribution(counts: list[DashboardStatusCount]) -> list[Dashb
     ]
 
 
-async def _build_category_distribution(session: AsyncSession) -> list[DashboardCategorySlice]:
+async def _build_status_distribution_for_period(session: AsyncSession, since: datetime) -> list[DashboardStatusSlice]:
+    result = await session.execute(
+        select(Occurrence.status, func.count(Occurrence.id))
+        .where(Occurrence.opened_at >= since)
+        .group_by(Occurrence.status)
+    )
+    totals_by_status = {status: total for status, total in result.all()}
+    return _build_status_distribution(
+        [DashboardStatusCount(status=status.value, total=totals_by_status.get(status.value, 0)) for status in OccurrenceStatus]
+    )
+
+
+async def _build_category_distribution(session: AsyncSession, since: datetime) -> list[DashboardCategorySlice]:
     categories = await _get_dashboard_categories(session)
     if not categories:
         return []
@@ -66,7 +89,7 @@ async def _build_category_distribution(session: AsyncSession) -> list[DashboardC
     result = await session.execute(
         select(Category.name, func.count(Occurrence.id))
         .join(Occurrence, Occurrence.category_id == Category.id)
-        .where(Category.name.in_(categories))
+        .where(Category.name.in_(categories), Occurrence.opened_at >= since)
         .group_by(Category.name)
     )
     totals_by_category = {name: total for name, total in result.all()}
@@ -82,7 +105,7 @@ async def _build_category_distribution(session: AsyncSession) -> list[DashboardC
     ]
 
 
-async def _build_mttr_by_category(session: AsyncSession) -> list[DashboardMttrCategory]:
+async def _build_mttr_by_category(session: AsyncSession, since: datetime) -> list[DashboardMttrCategory]:
     categories = await _get_dashboard_categories(session)
     if not categories:
         return []
@@ -94,6 +117,7 @@ async def _build_mttr_by_category(session: AsyncSession) -> list[DashboardMttrCa
             Category.name.in_(categories),
             Occurrence.closed_at.is_not(None),
             Occurrence.status == OccurrenceStatus.FECHADA.value,
+            Occurrence.closed_at >= since,
         )
     )
     durations_by_category: dict[str, list[float]] = defaultdict(list)
