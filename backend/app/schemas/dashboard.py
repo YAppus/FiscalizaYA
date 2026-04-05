@@ -1,5 +1,3 @@
-from typing import Literal
-
 from pydantic import BaseModel
 
 
@@ -14,13 +12,19 @@ class DashboardStatusSlice(BaseModel):
     percentage: float
 
 
-class DashboardSolicitationPeriod(BaseModel):
-    key: Literal["weekly", "monthly", "yearly"]
-    label: str
+class DashboardCategorySlice(BaseModel):
+    category: str
     total: int
-    slices: list[DashboardStatusSlice]
+    percentage: float
+
+
+class DashboardMttrCategory(BaseModel):
+    category: str
+    average_resolution_hours: float
 
 
 class DashboardOverviewResponse(BaseModel):
     counts: list[DashboardStatusCount]
-    solicitation_periods: list[DashboardSolicitationPeriod]
+    status_distribution: list[DashboardStatusSlice]
+    category_distribution: list[DashboardCategorySlice]
+    mttr_by_category: list[DashboardMttrCategory]

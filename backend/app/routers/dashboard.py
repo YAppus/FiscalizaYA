@@ -1,5 +1,4 @@
-from datetime import UTC, datetime, timedelta
-from typing import Literal
+from collections import defaultdict
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import func, select
@@ -10,8 +9,9 @@ from app.core.deps import require_current_user
 from app.models.category import Category
 from app.models.occurrence import Occurrence, OccurrenceStatus
 from app.schemas.dashboard import (
+    DashboardCategorySlice,
+    DashboardMttrCategory,
     DashboardOverviewResponse,
-    DashboardSolicitationPeriod,
     DashboardStatusCount,
     DashboardStatusSlice,
 )
@@ -23,8 +23,15 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"], dependencies=[Depend
 @router.get("/overview", response_model=DashboardOverviewResponse)
 async def get_dashboard_overview(session: AsyncSession = Depends(get_db)):
     counts = await _build_status_counts(session)
-    solicitation_periods = await _build_solicitation_periods(session)
-    return DashboardOverviewResponse(counts=counts, solicitation_periods=solicitation_periods)
+    status_distribution = _build_status_distribution(counts)
+    category_distribution = await _build_category_distribution(session)
+    mttr_by_category = await _build_mttr_by_category(session)
+    return DashboardOverviewResponse(
+        counts=counts,
+        status_distribution=status_distribution,
+        category_distribution=category_distribution,
+        mttr_by_category=mttr_by_category,
+    )
 
 
 async def _build_status_counts(session: AsyncSession) -> list[DashboardStatusCount]:
@@ -39,58 +46,83 @@ async def _build_status_counts(session: AsyncSession) -> list[DashboardStatusCou
     ]
 
 
-async def _build_solicitation_periods(session: AsyncSession) -> list[DashboardSolicitationPeriod]:
-    category_result = await session.execute(select(Category.id).where(Category.name == "Solicitacao"))
-    solicitation_category_id = category_result.scalar_one_or_none()
-    if solicitation_category_id is None:
-        return [_build_empty_period("weekly", "Semanal"), _build_empty_period("monthly", "Mensal"), _build_empty_period("yearly", "Anual")]
-
-    now = datetime.now(UTC)
+def _build_status_distribution(counts: list[DashboardStatusCount]) -> list[DashboardStatusSlice]:
+    total = sum(item.total for item in counts)
     return [
-        await _build_period(session, solicitation_category_id, "weekly", "Semanal", now - timedelta(days=7)),
-        await _build_period(session, solicitation_category_id, "monthly", "Mensal", now - timedelta(days=30)),
-        await _build_period(session, solicitation_category_id, "yearly", "Anual", now - timedelta(days=365)),
+        DashboardStatusSlice(
+            status=item.status,
+            total=item.total,
+            percentage=round((item.total / total) * 100, 1) if total else 0,
+        )
+        for item in counts
     ]
 
 
-async def _build_period(
-    session: AsyncSession,
-    category_id: int,
-    key: Literal["weekly", "monthly", "yearly"],
-    label: str,
-    threshold: datetime,
-) -> DashboardSolicitationPeriod:
-    total_result = await session.execute(
-        select(func.count(Occurrence.id)).where(
-            Occurrence.category_id == category_id,
-            Occurrence.opened_at >= threshold,
-        )
-    )
-    total = total_result.scalar_one()
+async def _build_category_distribution(session: AsyncSession) -> list[DashboardCategorySlice]:
+    categories = await _get_dashboard_categories(session)
+    if not categories:
+        return []
 
-    grouped_result = await session.execute(
-        select(Occurrence.status, func.count(Occurrence.id))
+    result = await session.execute(
+        select(Category.name, func.count(Occurrence.id))
+        .join(Occurrence, Occurrence.category_id == Category.id)
+        .where(Category.name.in_(categories))
+        .group_by(Category.name)
+    )
+    totals_by_category = {name: total for name, total in result.all()}
+    total_occurrences = sum(totals_by_category.values())
+
+    return [
+        DashboardCategorySlice(
+            category=_to_category_label(name),
+            total=totals_by_category.get(name, 0),
+            percentage=round((totals_by_category.get(name, 0) / total_occurrences) * 100, 1) if total_occurrences else 0,
+        )
+        for name in categories
+    ]
+
+
+async def _build_mttr_by_category(session: AsyncSession) -> list[DashboardMttrCategory]:
+    categories = await _get_dashboard_categories(session)
+    if not categories:
+        return []
+
+    result = await session.execute(
+        select(Category.name, Occurrence.opened_at, Occurrence.closed_at)
+        .join(Occurrence, Occurrence.category_id == Category.id)
         .where(
-            Occurrence.category_id == category_id,
-            Occurrence.opened_at >= threshold,
+            Category.name.in_(categories),
+            Occurrence.closed_at.is_not(None),
+            Occurrence.status == OccurrenceStatus.FECHADA.value,
         )
-        .group_by(Occurrence.status)
     )
-    totals_by_status = {status: count for status, count in grouped_result.all()}
+    durations_by_category: dict[str, list[float]] = defaultdict(list)
+    for category_name, opened_at, closed_at in result.all():
+        if closed_at is None:
+            continue
+        durations_by_category[category_name].append((closed_at - opened_at).total_seconds() / 3600)
 
-    slices = []
-    for status in OccurrenceStatus:
-        count = totals_by_status.get(status.value, 0)
-        percentage = round((count / total) * 100, 1) if total else 0
-        slices.append(DashboardStatusSlice(status=status.value, total=count, percentage=percentage))
+    return [
+        DashboardMttrCategory(
+            category=_to_category_label(name),
+            average_resolution_hours=round(sum(durations_by_category.get(name, [])) / len(durations_by_category.get(name, [])), 2)
+            if durations_by_category.get(name)
+            else 0,
+        )
+        for name in categories
+    ]
 
-    return DashboardSolicitationPeriod(key=key, label=label, total=total, slices=slices)
+
+async def _get_dashboard_categories(session: AsyncSession) -> list[str]:
+    ordered_names = ["Denuncia", "Solicitacao", "Reclamacao"]
+    result = await session.execute(select(Category.name).where(Category.name.in_(ordered_names)))
+    available = set(result.scalars().all())
+    return [name for name in ordered_names if name in available]
 
 
-def _build_empty_period(key: Literal["weekly", "monthly", "yearly"], label: str) -> DashboardSolicitationPeriod:
-    return DashboardSolicitationPeriod(
-        key=key,
-        label=label,
-        total=0,
-        slices=[DashboardStatusSlice(status=status.value, total=0, percentage=0) for status in OccurrenceStatus],
-    )
+def _to_category_label(name: str) -> str:
+    return {
+        "Denuncia": "Denuncia",
+        "Solicitacao": "Solicitacao",
+        "Reclamacao": "Reclamacao",
+    }.get(name, name)
