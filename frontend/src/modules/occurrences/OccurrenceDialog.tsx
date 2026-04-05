@@ -1,12 +1,13 @@
-import { useEffect } from "react";
+import { ChangeEvent, useEffect, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Alert, Button, Dialog, DialogActions, DialogContent, DialogTitle, Grid, MenuItem, Stack, TextField } from "@mui/material";
-import { Controller, useForm } from "react-hook-form";
+import { Controller, useForm, useWatch } from "react-hook-form";
 import { z } from "zod";
 
 import type { Category, Occurrence, Priority } from "./types";
 import { occurrenceStatuses } from "./types";
 
+const MAX_PDF_ATTACHMENT_SIZE_BYTES = 1024 * 1024;
 
 const schema = z.object({
   cpf: z.string().min(11, "Informe um CPF valido"),
@@ -14,6 +15,7 @@ const schema = z.object({
   priority_id: z.coerce.number().int().positive("Selecione a prioridade"),
   status: z.enum(occurrenceStatuses),
   description: z.string().min(5, "Descreva a ocorrencia"),
+  status_reason: z.string().optional().or(z.literal("")),
   opened_at: z.string().min(1, "Informe a data de abertura"),
   closed_at: z.string().optional().or(z.literal(""))
 }).superRefine((value, ctx) => {
@@ -32,7 +34,7 @@ type OccurrenceDialogProps = {
   loading: boolean;
   error: string | null;
   onClose: () => void;
-  onSubmit: (values: FormValues) => Promise<void>;
+  onSubmit: (values: FormValues, attachments: { opening: File | null; closing: File | null }) => Promise<void>;
 };
 
 
@@ -46,6 +48,10 @@ export function OccurrenceDialog({
   onClose,
   onSubmit
 }: OccurrenceDialogProps) {
+  const [openingAttachment, setOpeningAttachment] = useState<File | null>(null);
+  const [closingAttachment, setClosingAttachment] = useState<File | null>(null);
+  const [openingAttachmentError, setOpeningAttachmentError] = useState<string | null>(null);
+  const [closingAttachmentError, setClosingAttachmentError] = useState<string | null>(null);
   const { control, handleSubmit, reset, formState: { errors } } = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: {
@@ -54,21 +60,37 @@ export function OccurrenceDialog({
       priority_id: occurrence?.priority.id ?? 0,
       status: (occurrence?.status as FormValues["status"]) ?? "Aberta",
       description: occurrence?.description ?? "",
-      opened_at: occurrence ? toInputDateTime(occurrence.opened_at) : toInputDateTime(new Date().toISOString()),
+      status_reason: "",
+      opened_at: occurrence ? toInputDateTime(occurrence.opened_at) : getCurrentLocalDateTime(),
       closed_at: occurrence?.closed_at ? toInputDateTime(occurrence.closed_at) : ""
     }
   });
 
   const occurrenceId = occurrence?.id;
+  const availableStatuses = occurrence ? occurrenceStatuses : ["Aberta"];
+  const watchedStatus = useWatch({ control, name: "status" });
+  const requiresStatusReason = Boolean(
+    occurrence &&
+    watchedStatus &&
+    watchedStatus !== occurrence.status &&
+    ["Fechada", "Cancelada"].includes(watchedStatus)
+  );
+  const openingAttachmentName = occurrence?.attachments.find((item) => item.phase === "opening")?.original_filename;
+  const closingAttachmentName = occurrence?.attachments.find((item) => item.phase === "closing")?.original_filename;
 
   useEffect(() => {
+    setOpeningAttachment(null);
+    setClosingAttachment(null);
+    setOpeningAttachmentError(null);
+    setClosingAttachmentError(null);
     reset({
       cpf: occurrence?.cpf ?? "",
       category_id: occurrence?.category.id ?? 0,
       priority_id: occurrence?.priority.id ?? 0,
       status: (occurrence?.status as FormValues["status"]) ?? "Aberta",
       description: occurrence?.description ?? "",
-      opened_at: occurrence ? toInputDateTime(occurrence.opened_at) : toInputDateTime(new Date().toISOString()),
+      status_reason: "",
+      opened_at: occurrence ? toInputDateTime(occurrence.opened_at) : getCurrentLocalDateTime(),
       closed_at: occurrence?.closed_at ? toInputDateTime(occurrence.closed_at) : ""
     });
   }, [occurrenceId, occurrence, reset]);
@@ -95,7 +117,7 @@ export function OccurrenceDialog({
                 control={control}
                 render={({ field }) => (
                   <TextField {...field} select fullWidth label="Status" error={!!errors.status} helperText={errors.status?.message}>
-                    {occurrenceStatuses.map((status) => (
+                    {availableStatuses.map((status) => (
                       <MenuItem key={status} value={status}>{status}</MenuItem>
                     ))}
                   </TextField>
@@ -155,12 +177,75 @@ export function OccurrenceDialog({
                 )}
               />
             </Grid>
+            {!occurrence ? (
+              <Grid size={{ xs: 12 }}>
+                <TextField
+                  fullWidth
+                  type="file"
+                  label="PDF da abertura"
+                  error={!!openingAttachmentError}
+                  helperText={openingAttachmentError ?? openingAttachment?.name ?? "Opcional. Envie no maximo um PDF na abertura (ate 1 MB)."}
+                  InputLabelProps={{ shrink: true }}
+                  inputProps={{ accept: "application/pdf,.pdf" }}
+                  onChange={(event) => handleAttachmentChange(event, setOpeningAttachment, setOpeningAttachmentError)}
+                />
+              </Grid>
+            ) : openingAttachmentName ? (
+              <Grid size={{ xs: 12 }}>
+                <Alert severity="info">PDF de abertura anexado: {openingAttachmentName}</Alert>
+              </Grid>
+            ) : null}
+            {requiresStatusReason ? (
+              <Grid size={{ xs: 12 }}>
+                <Controller
+                  name="status_reason"
+                  control={control}
+                  rules={{
+                    validate: (value) => !requiresStatusReason || Boolean(value?.trim()) || "Informe o motivo da alteracao de status"
+                  }}
+                  render={({ field }) => (
+                    <TextField
+                      {...field}
+                      fullWidth
+                      multiline
+                      minRows={3}
+                      label="Motivo da alteracao"
+                      error={!!errors.status_reason}
+                      helperText={errors.status_reason?.message}
+                    />
+                  )}
+                />
+              </Grid>
+            ) : null}
+            {requiresStatusReason ? (
+              <Grid size={{ xs: 12 }}>
+                {closingAttachmentName ? (
+                  <Alert severity="info" sx={{ mb: 1.5 }}>
+                    PDF de encerramento anexado: {closingAttachmentName}
+                  </Alert>
+                ) : null}
+                <TextField
+                  fullWidth
+                  type="file"
+                  label="PDF do encerramento"
+                  error={!!closingAttachmentError}
+                  helperText={closingAttachmentError ?? closingAttachment?.name ?? "Opcional. Envie no maximo um PDF ao fechar ou cancelar (ate 1 MB)."}
+                  InputLabelProps={{ shrink: true }}
+                  inputProps={{ accept: "application/pdf,.pdf" }}
+                  onChange={(event) => handleAttachmentChange(event, setClosingAttachment, setClosingAttachmentError)}
+                />
+              </Grid>
+            ) : null}
           </Grid>
         </Stack>
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>Cancelar</Button>
-        <Button variant="contained" onClick={handleSubmit(onSubmit)} disabled={loading}>
+        <Button
+          variant="contained"
+          onClick={handleSubmit((values) => onSubmit(values, { opening: openingAttachment, closing: closingAttachment }))}
+          disabled={loading}
+        >
           {loading ? "Salvando..." : "Salvar"}
         </Button>
       </DialogActions>
@@ -170,5 +255,38 @@ export function OccurrenceDialog({
 
 
 function toInputDateTime(value: string) {
-  return value.slice(0, 16);
+  const date = new Date(value);
+  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return localDate.toISOString().slice(0, 16);
+}
+
+function getCurrentLocalDateTime() {
+  const now = new Date();
+  const localDate = new Date(now.getTime() - now.getTimezoneOffset() * 60000);
+  return localDate.toISOString().slice(0, 16);
+}
+
+function handleAttachmentChange(
+  event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+  setAttachment: (file: File | null) => void,
+  setAttachmentError: (message: string | null) => void,
+) {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0] ?? null;
+  setAttachmentError(null);
+
+  if (file && file.size > MAX_PDF_ATTACHMENT_SIZE_BYTES) {
+    setAttachment(null);
+    setAttachmentError("O arquivo PDF deve ter no maximo 1 MB");
+    input.value = "";
+    return;
+  }
+
+  if (file && file.type !== "application/pdf" && !file.name.toLowerCase().endsWith(".pdf")) {
+    setAttachment(null);
+    setAttachmentError("Apenas arquivos PDF sao permitidos");
+    input.value = "";
+    return;
+  }
+  setAttachment(file);
 }

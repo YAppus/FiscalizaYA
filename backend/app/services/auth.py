@@ -18,7 +18,7 @@ from app.models.user import User
 from app.schemas.auth import AuthResponse, LoginRequest, RegisterRequest, TokenPair, UserResponse
 
 
-def _auth_error(detail: str = "Authentication failed") -> HTTPException:
+def _auth_error(detail: str = "E-mail ou senha incorretos") -> HTTPException:
     return HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=detail)
 
 
@@ -41,7 +41,7 @@ async def get_user_by_id(session: AsyncSession, user_id: str) -> User | None:
 async def create_user(session: AsyncSession, payload: RegisterRequest) -> User:
     existing = await get_user_by_email(session, payload.email)
     if existing:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Unable to create user")
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Nao foi possivel criar o usuario")
 
     user = User(
         email=payload.email.lower(),

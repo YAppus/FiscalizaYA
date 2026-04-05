@@ -12,3 +12,8 @@ export type FilterCondition = {
   operator: FilterOperator;
   value: string;
 };
+
+export type FilterOption = {
+  label: string;
+  value: string;
+};

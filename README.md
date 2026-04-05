@@ -9,5 +9,3 @@ O `FiscalizaYA` foi pensado para dar mais agilidade, controle e confianca ao reg
 Do login ao encerramento da ocorrencia, a experiencia prioriza facilidade operacional e seguranca. O sistema conta com autenticacao JWT, protecao de rotas, validacoes robustas, sanitizacao de entrada, rate limiting e controle de transicoes de status, ajudando a proteger os dados e dando mais previsibilidade ao processo.
 
 Com dashboard de acompanhamento, CRUD responsivo, filtros server-side e historico automatico, o software oferece uma base moderna para equipes que precisam registrar demandas com rapidez, acompanhar prioridades e manter rastreabilidade completa das mudancas.
-
-

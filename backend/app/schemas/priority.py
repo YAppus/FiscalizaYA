@@ -28,6 +28,16 @@ class PriorityUpdate(BaseModel):
     level: int | None = Field(default=None, ge=1, le=999)
     description: str | None = Field(default=None, max_length=255)
 
+    @field_validator("name")
+    @classmethod
+    def sanitize_name(cls, value: str | None) -> str | None:
+        return sanitize_text(value) if value else value
+
+    @field_validator("description")
+    @classmethod
+    def sanitize_description(cls, value: str | None) -> str | None:
+        return sanitize_text(value) if value else value
+
 
 class PriorityResponse(PriorityBase):
     model_config = ConfigDict(from_attributes=True)

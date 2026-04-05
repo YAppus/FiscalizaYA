@@ -3,12 +3,13 @@ import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
 import EditRoundedIcon from "@mui/icons-material/EditRounded";
 import HistoryRoundedIcon from "@mui/icons-material/HistoryRounded";
 import { Alert, Box, Button, Card, CardContent, IconButton, Stack, Typography } from "@mui/material";
-import { DataGrid, type GridColDef, type GridPaginationModel } from "@mui/x-data-grid";
+import { DataGrid, type GridColDef, type GridPaginationModel, type GridLocaleText } from "@mui/x-data-grid";
 import { useMemo } from "react";
 
 import { TxFilterBar } from "../../shared/components/TxFilterBar";
 import { TxStatusBadge } from "../../shared/components/TxStatusBadge";
-import type { FilterCondition } from "../../shared/types";
+import type { FilterCondition, FilterOption } from "../../shared/types";
+import { occurrenceStatuses } from "./types";
 import type { Category, Occurrence, Priority } from "./types";
 
 
@@ -30,6 +31,14 @@ type OccurrencePageProps = {
   onDelete: (id: number) => void;
 };
 
+const gridLocaleText: Partial<GridLocaleText> = {
+  noRowsLabel: "Sem ocorrencias",
+  footerRowSelected: (count) => `${count.toLocaleString()} linha(s) selecionada(s)`,
+  footerTotalRows: "Total de linhas:",
+  paginationRowsPerPage: "Ocorrencias por pagina:",
+  paginationDisplayedRows: ({ from, to, count }) => `${from}-${to} de ${count === -1 ? `mais de ${to}` : count}`
+};
+
 
 export function OccurrencePage({
   categories,
@@ -48,6 +57,19 @@ export function OccurrencePage({
   onOpenHistory,
   onDelete
 }: OccurrencePageProps) {
+  const categoryFilterOptions: FilterOption[] = categories.map((category) => ({
+    label: category.name,
+    value: String(category.id)
+  }));
+  const priorityFilterOptions: FilterOption[] = priorities.map((priority) => ({
+    label: priority.name,
+    value: String(priority.id)
+  }));
+  const statusFilterOptions: FilterOption[] = occurrenceStatuses.map((status) => ({
+    label: status,
+    value: status
+  }));
+
   const columns = useMemo<GridColDef<Occurrence>[]>(() => [
     { field: "id", headerName: "ID", width: 90 },
     { field: "cpf", headerName: "CPF", minWidth: 150, flex: 0.9 },
@@ -95,6 +117,9 @@ export function OccurrencePage({
           { label: "Prioridade", value: "priority_id" }
         ]}
         filter={filterDraft}
+        categoryOptions={categoryFilterOptions}
+        priorityOptions={priorityFilterOptions}
+        statusOptions={statusFilterOptions}
         onChange={onFilterChange}
         onApply={onApplyFilters}
         onClear={onClearFilters}
@@ -130,6 +155,7 @@ export function OccurrencePage({
               onPaginationModelChange={onPaginationModelChange}
               pageSizeOptions={[5, 10, 20, 50]}
               disableRowSelectionOnClick
+              localeText={gridLocaleText}
               sx={{ border: 0 }}
             />
           </Box>

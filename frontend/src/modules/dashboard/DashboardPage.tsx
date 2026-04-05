@@ -2,6 +2,7 @@ import { Card, CardContent, Grid, Tab, Tabs, Typography } from "@mui/material";
 import type { ReactNode } from "react";
 
 import { DashboardCards } from "./DashboardCards";
+import type { DashboardOverview } from "./types";
 
 
 type AppTab = "dashboard" | "occurrences";
@@ -10,20 +11,32 @@ type DashboardPageProps = {
   userName: string;
   tab: AppTab;
   counts: { status: string; total: number }[];
+  periods: DashboardOverview["periods"];
+  onSelectStatus: (status: string) => void;
   onTabChange: (value: AppTab) => void;
   children?: ReactNode;
 };
 
 
-export function DashboardPage({ userName, tab, counts, onTabChange, children }: DashboardPageProps) {
+export function DashboardPage({
+  userName,
+  tab,
+  counts,
+  periods,
+  onSelectStatus,
+  onTabChange,
+  children
+}: DashboardPageProps) {
   return (
     <>
       <Card elevation={0} sx={{ borderRadius: 5, background: "linear-gradient(135deg, #0b5fff 0%, #16367a 100%)", color: "white" }}>
-        <CardContent sx={{ p: { xs: 3, md: 4 } }}>
-          <Grid container spacing={2} alignItems="center">
+        <CardContent sx={{ p: { xs: 2.25, md: 2.5 } }}>
+          <Grid container spacing={1.5} alignItems="center">
             <Grid size={{ xs: 12, md: 8 }}>
-              <Typography variant="h4">Bem-vindo, {userName}</Typography>
-              <Typography sx={{ opacity: 0.88, mt: 1.2 }}>
+              <Typography variant="h4" sx={{ fontSize: { xs: "2rem", md: "2.2rem" }, lineHeight: 1.1 }}>
+                Bem-vindo, {userName}
+              </Typography>
+              <Typography sx={{ opacity: 0.88, mt: 0.6 }} variant="body1">
                 Use o dashboard para acompanhar o fluxo e a grade para operar o CRUD com filtros, paginacao e historico.
               </Typography>
             </Grid>
@@ -34,7 +47,15 @@ export function DashboardPage({ userName, tab, counts, onTabChange, children }: 
                 textColor="inherit"
                 indicatorColor="secondary"
                 variant="fullWidth"
-                sx={{ bgcolor: "rgba(255,255,255,0.08)", borderRadius: 3 }}
+                sx={{
+                  minHeight: 46,
+                  bgcolor: "rgba(255,255,255,0.08)",
+                  borderRadius: 3,
+                  "& .MuiTab-root": {
+                    minHeight: 46,
+                    py: 0.5
+                  }
+                }}
               >
                 <Tab label="Dashboard" value="dashboard" />
                 <Tab label="Ocorrencias" value="occurrences" />
@@ -44,7 +65,13 @@ export function DashboardPage({ userName, tab, counts, onTabChange, children }: 
         </CardContent>
       </Card>
 
-      {tab === "dashboard" ? <DashboardCards counts={counts} /> : children}
+      {tab === "dashboard" ? (
+        <DashboardCards
+          counts={counts}
+          periods={periods}
+          onSelectStatus={onSelectStatus}
+        />
+      ) : children}
     </>
   );
 }

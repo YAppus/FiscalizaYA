@@ -22,7 +22,7 @@ def auth_rate_limit(request: Request) -> None:
     _clean_attempts(bucket, settings.auth_rate_limit_window_seconds, now)
 
     if len(bucket) >= settings.auth_rate_limit_max_attempts:
-        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Too many attempts. Try again later.")
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Muitas tentativas. Tente novamente mais tarde.")
 
     bucket.append(now)
 

@@ -31,3 +31,4 @@ class Occurrence(Base):
     category = relationship("Category", back_populates="occurrences")
     priority = relationship("Priority", back_populates="occurrences")
     history_entries = relationship("History", back_populates="occurrence", cascade="all, delete-orphan")
+    attachments = relationship("OccurrenceAttachment", back_populates="occurrence", cascade="all, delete-orphan")

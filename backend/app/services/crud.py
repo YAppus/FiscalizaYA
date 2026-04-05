@@ -1,6 +1,8 @@
+from pathlib import Path
+from uuid import uuid4
 from datetime import UTC, datetime
 
-from fastapi import HTTPException, status
+from fastapi import HTTPException, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -8,6 +10,7 @@ from app.core.validators import validate_cpf
 from app.models.category import Category
 from app.models.history import History
 from app.models.occurrence import Occurrence, OccurrenceStatus
+from app.models.occurrence_attachment import OccurrenceAttachment
 from app.models.priority import Priority
 from app.models.user import User
 from app.schemas.category import CategoryCreate, CategoryUpdate
@@ -32,11 +35,14 @@ ALLOWED_STATUS_TRANSITIONS = {
     OccurrenceStatus.CANCELADA.value: set(),
 }
 
+ATTACHMENT_STORAGE_DIR = Path(__file__).resolve().parents[2] / "storage" / "occurrence_attachments"
+MAX_PDF_ATTACHMENT_SIZE_BYTES = 1024 * 1024
+
 
 async def get_or_404(session: AsyncSession, model, entity_id):
     entity = await session.get(model, entity_id)
     if not entity:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"{model.__name__} not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"{model.__name__} nao encontrado")
     return entity
 
 
@@ -44,7 +50,7 @@ async def _ensure_unique(session: AsyncSession, model, column, value, entity_id=
     result = await session.execute(select(model).where(column == value))
     existing = result.scalar_one_or_none()
     if existing and getattr(existing, "id") != entity_id:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"{model.__name__} already exists")
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"{model.__name__} ja existe")
 
 
 async def create_category(session: AsyncSession, payload: CategoryCreate) -> Category:
@@ -123,12 +129,12 @@ def _assert_status_transition(current_status: str, next_status: str) -> None:
     if current_status == next_status:
         return
     if next_status == OccurrenceStatus.CANCELADA.value and current_status != OccurrenceStatus.ABERTA.value:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cancellation is only allowed from Aberta")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="O cancelamento so e permitido a partir de Aberta")
     allowed = ALLOWED_STATUS_TRANSITIONS[current_status]
     if next_status not in allowed:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Transition from {current_status} to {next_status} is not allowed",
+            detail=f"A transicao de {current_status} para {next_status} nao e permitida",
         )
 
 
@@ -139,7 +145,7 @@ async def _register_status_history(
     new_status: str,
     changed_by_user_id: str | None,
     note: str | None = None,
-) -> None:
+    ) -> None:
     session.add(
         History(
             occurrence=occurrence,
@@ -149,6 +155,66 @@ async def _register_status_history(
             note=note,
         )
     )
+
+
+def _build_description_change_note(previous_description: str, new_description: str) -> str:
+    base_note = "Descricao alterada"
+    detail = f" de '{previous_description}' para '{new_description}'"
+    max_length = 255
+    if len(base_note) + len(detail) <= max_length:
+        return f"{base_note}{detail}"
+    return base_note
+
+
+def _build_change_note(field_label: str, previous_value: str, new_value: str) -> str:
+    base_note = f"{field_label} alterada"
+    detail = f" de '{previous_value}' para '{new_value}'"
+    max_length = 255
+    if len(base_note) + len(detail) <= max_length:
+        return f"{base_note}{detail}"
+    return base_note
+
+
+def _format_history_datetime(value: datetime) -> str:
+    return value.astimezone(UTC).strftime("%d/%m/%Y %H:%M:%S UTC") if value.tzinfo else value.strftime("%d/%m/%Y %H:%M:%S")
+
+
+def _assert_description_update_allowed(current_status: str) -> None:
+    blocked_statuses = {
+        OccurrenceStatus.EM_ANDAMENTO.value,
+        OccurrenceStatus.RESOLVIDA.value,
+        OccurrenceStatus.FECHADA.value,
+        OccurrenceStatus.CANCELADA.value,
+    }
+    if current_status in blocked_statuses:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Nao e permitido alterar a descricao neste status da ocorrencia",
+        )
+
+
+def _assert_immutable_occurrence_fields(entity: Occurrence, data: dict) -> None:
+    if "cpf" in data and data["cpf"] != entity.cpf:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Nao e permitido alterar CPF da ocorrencia",
+        )
+
+    mutable_only_in_early_status = {
+        "category_id": ("categoria", entity.category_id),
+        "priority_id": ("prioridade", entity.priority_id),
+        "opened_at": ("data de abertura", entity.opened_at),
+    }
+
+    for field, (label, current_value) in mutable_only_in_early_status.items():
+        if field in data and data[field] != current_value and entity.status not in {
+            OccurrenceStatus.ABERTA.value,
+            OccurrenceStatus.EM_ANALISE.value,
+        }:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Nao e permitido alterar {label} da ocorrencia",
+            )
 
 
 def _is_terminal_status(status_value: str) -> bool:
@@ -181,18 +247,26 @@ def _validate_status_and_dates(status_value: str, opened_at: datetime, closed_at
     if _is_terminal_status(status_value) and closed_at is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Statuses terminais exigem data de encerramento",
+            detail="Status terminais exigem data de encerramento",
         )
-    if not _is_terminal_status(status_value) and closed_at is not None:
+
+
+def _validate_status_reason(previous_status: str, next_status: str, status_reason: str | None) -> None:
+    if previous_status == next_status:
+        return
+    if next_status not in {OccurrenceStatus.FECHADA.value, OccurrenceStatus.CANCELADA.value}:
+        return
+    if not status_reason:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Somente ocorrencias fechadas ou canceladas podem ter data de encerramento",
+            detail="Informe o motivo da alteracao de status",
         )
 
 
 async def create_occurrence(session: AsyncSession, payload: OccurrenceCreate, current_user: User | None) -> Occurrence:
     await _assert_foreign_keys(session, payload.category_id, payload.priority_id)
     data = payload.model_dump()
+    data.pop("status_reason", None)
     data["cpf"] = validate_cpf(payload.cpf)
     data["opened_at"] = data["opened_at"] or datetime.now(UTC)
     _validate_create_occurrence_state(data["status"], data.get("closed_at"))
@@ -209,19 +283,37 @@ async def create_occurrence(session: AsyncSession, payload: OccurrenceCreate, cu
 
 async def update_occurrence(session: AsyncSession, entity: Occurrence, payload: OccurrenceUpdate, current_user: User | None) -> Occurrence:
     data = payload.model_dump(exclude_unset=True)
+    status_reason = data.pop("status_reason", None)
+    _assert_immutable_occurrence_fields(entity, data)
+
+    category_before = None
+    category_after = None
+    priority_before = None
+    priority_after = None
     if "category_id" in data or "priority_id" in data:
         await _assert_foreign_keys(
             session,
             data.get("category_id", entity.category_id),
             data.get("priority_id", entity.priority_id),
         )
+        category_before = await get_or_404(session, Category, entity.category_id)
+        category_after = await get_or_404(session, Category, data.get("category_id", entity.category_id))
+        priority_before = await get_or_404(session, Priority, entity.priority_id)
+        priority_after = await get_or_404(session, Priority, data.get("priority_id", entity.priority_id))
 
     if "cpf" in data and data["cpf"] is not None:
         data["cpf"] = validate_cpf(data["cpf"])
 
     previous_status = entity.status
     next_status = data.get("status", previous_status)
+    previous_description = entity.description
+    previous_opened_at = entity.opened_at
+
+    if "description" in data and data["description"] != previous_description:
+        _assert_description_update_allowed(previous_status)
+
     _assert_status_transition(previous_status, next_status)
+    _validate_status_reason(previous_status, next_status, status_reason)
 
     if "status" in data:
         if _is_terminal_status(next_status) and "closed_at" not in data:
@@ -236,8 +328,54 @@ async def update_occurrence(session: AsyncSession, entity: Occurrence, payload: 
     for field, value in data.items():
         setattr(entity, field, value)
 
+    history_notes: list[str] = []
+    if "description" in data and data["description"] != previous_description:
+        history_notes.append(_build_description_change_note(previous_description, data["description"]))
+
+    if (
+        "category_id" in data
+        and category_before is not None
+        and category_after is not None
+        and category_before.id != category_after.id
+    ):
+        history_notes.append(_build_change_note("Categoria", category_before.name, category_after.name))
+
+    if (
+        "priority_id" in data
+        and priority_before is not None
+        and priority_after is not None
+        and priority_before.id != priority_after.id
+    ):
+        history_notes.append(_build_change_note("Prioridade", priority_before.name, priority_after.name))
+
+    if "opened_at" in data and data["opened_at"] != previous_opened_at:
+        history_notes.append(
+            _build_change_note(
+                "Data de abertura",
+                _format_history_datetime(previous_opened_at),
+                _format_history_datetime(data["opened_at"]),
+            )
+        )
+
+    for note in history_notes:
+        await _register_status_history(
+            session,
+            entity,
+            previous_status,
+            previous_status,
+            current_user.id if current_user else None,
+            note,
+        )
+
     if next_status != previous_status:
-        await _register_status_history(session, entity, previous_status, next_status, current_user.id if current_user else None)
+        await _register_status_history(
+            session,
+            entity,
+            previous_status,
+            next_status,
+            current_user.id if current_user else None,
+            status_reason,
+        )
 
     await session.commit()
     await session.refresh(entity)
@@ -247,3 +385,80 @@ async def update_occurrence(session: AsyncSession, entity: Occurrence, payload: 
 async def delete_entity(session: AsyncSession, entity) -> None:
     await session.delete(entity)
     await session.commit()
+
+
+def _validate_pdf_upload(file: UploadFile | None) -> None:
+    if file is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Arquivo PDF ausente")
+    filename = (file.filename or "").strip()
+    if not filename.lower().endswith(".pdf"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Apenas arquivos PDF sao permitidos")
+    if file.content_type not in {"application/pdf", "application/octet-stream"}:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Tipo de arquivo invalido para PDF")
+
+
+def _validate_pdf_size(content: bytes) -> None:
+    if len(content) > MAX_PDF_ATTACHMENT_SIZE_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="O arquivo PDF deve ter no maximo 1 MB",
+        )
+
+
+def _validate_attachment_phase(occurrence: Occurrence, phase: str) -> None:
+    if phase == "opening":
+        if occurrence.status != OccurrenceStatus.ABERTA.value:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="O anexo de abertura so pode ser enviado para ocorrencias abertas")
+        return
+    if phase == "closing":
+        if occurrence.status not in {OccurrenceStatus.FECHADA.value, OccurrenceStatus.CANCELADA.value}:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="O anexo de encerramento so pode ser enviado para ocorrencias fechadas ou canceladas")
+        return
+    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Fase de anexo invalida")
+
+
+async def save_occurrence_attachment(
+    session: AsyncSession,
+    occurrence: Occurrence,
+    phase: str,
+    file: UploadFile,
+    current_user: User | None,
+) -> OccurrenceAttachment:
+    _validate_attachment_phase(occurrence, phase)
+    _validate_pdf_upload(file)
+
+    result = await session.execute(
+        select(OccurrenceAttachment).where(
+            OccurrenceAttachment.occurrence_id == occurrence.id,
+            OccurrenceAttachment.phase == phase,
+        )
+    )
+    existing_attachment = result.scalar_one_or_none()
+    if existing_attachment:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Ja existe um PDF anexado para esta etapa da ocorrencia",
+        )
+
+    ATTACHMENT_STORAGE_DIR.mkdir(parents=True, exist_ok=True)
+    original_filename = file.filename or "documento.pdf"
+    stored_filename = f"{occurrence.id}_{phase}_{uuid4().hex}.pdf"
+    file_path = ATTACHMENT_STORAGE_DIR / stored_filename
+    content = await file.read()
+    _validate_pdf_size(content)
+
+    with file_path.open("wb") as output_file:
+        output_file.write(content)
+
+    attachment = OccurrenceAttachment(
+        occurrence_id=occurrence.id,
+        phase=phase,
+        original_filename=original_filename,
+        stored_filename=stored_filename,
+        content_type=file.content_type or "application/pdf",
+        uploaded_by_user_id=current_user.id if current_user else None,
+    )
+    session.add(attachment)
+    await session.commit()
+    await session.refresh(attachment)
+    return attachment

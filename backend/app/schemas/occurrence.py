@@ -6,6 +6,7 @@ from app.models.occurrence import OccurrenceStatus
 from app.core.sanitizers import sanitize_text
 from app.schemas.category import CategoryResponse
 from app.schemas.history import HistoryResponse
+from app.schemas.occurrence_attachment import OccurrenceAttachmentResponse
 from app.schemas.priority import PriorityResponse
 
 
@@ -15,6 +16,7 @@ class OccurrenceBase(BaseModel):
     priority_id: int
     status: str = OccurrenceStatus.ABERTA.value
     description: str = Field(min_length=5)
+    status_reason: str | None = Field(default=None, max_length=255)
     opened_at: datetime | None = None
     closed_at: datetime | None = None
 
@@ -31,9 +33,9 @@ class OccurrenceBase(BaseModel):
     def sanitize_cpf(cls, value: str) -> str:
         return sanitize_text(value)
 
-    @field_validator("description")
+    @field_validator("description", "status_reason")
     @classmethod
-    def sanitize_description(cls, value: str) -> str:
+    def sanitize_description(cls, value: str | None) -> str | None:
         return sanitize_text(value)
 
     @model_validator(mode="after")
@@ -53,6 +55,7 @@ class OccurrenceUpdate(BaseModel):
     priority_id: int | None = None
     status: str | None = None
     description: str | None = Field(default=None, min_length=5)
+    status_reason: str | None = Field(default=None, max_length=255)
     opened_at: datetime | None = None
     closed_at: datetime | None = None
 
@@ -66,7 +69,7 @@ class OccurrenceUpdate(BaseModel):
             raise ValueError(f"Status invalido. Use um de: {', '.join(sorted(allowed))}")
         return value
 
-    @field_validator("cpf", "description")
+    @field_validator("cpf", "description", "status_reason")
     @classmethod
     def sanitize_optional_strings(cls, value: str | None) -> str | None:
         return sanitize_text(value) if value else value
@@ -90,3 +93,4 @@ class OccurrenceResponse(BaseModel):
     category: CategoryResponse
     priority: PriorityResponse
     history_entries: list[HistoryResponse] = []
+    attachments: list[OccurrenceAttachmentResponse] = []
