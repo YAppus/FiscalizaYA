@@ -1,6 +1,7 @@
-import { Box, ButtonBase, Card, CardContent, Divider, Grid, Stack, Typography } from "@mui/material";
+import { Box, ButtonBase, Card, CardContent, Divider, Grid, Stack, ToggleButton, ToggleButtonGroup, Typography } from "@mui/material";
+import { useState } from "react";
 
-import type { DashboardCategorySlice, DashboardMttrCategory, DashboardStatusSlice, StatusCount } from "./types";
+import type { DashboardMttrCategory, DashboardOverview, DashboardPeriodKey, DashboardStatusSlice, StatusCount } from "./types";
 
 const statusColors: Record<string, string> = {
   Aberta: "#9AA5B1",
@@ -13,17 +14,17 @@ const statusColors: Record<string, string> = {
 
 export function DashboardCards({
   counts,
-  statusDistribution,
-  categoryDistribution,
-  mttrByCategory,
+  periods,
   onSelectStatus
 }: {
   counts: StatusCount[];
-  statusDistribution: DashboardStatusSlice[];
-  categoryDistribution: DashboardCategorySlice[];
-  mttrByCategory: DashboardMttrCategory[];
+  periods: DashboardOverview["periods"];
   onSelectStatus: (status: string) => void;
 }) {
+  const [statusPeriod, setStatusPeriod] = useState<DashboardPeriodKey>("month");
+  const [mttrPeriod, setMttrPeriod] = useState<DashboardPeriodKey>("month");
+  const [categoryPeriod, setCategoryPeriod] = useState<DashboardPeriodKey>("month");
+
   return (
     <Grid container spacing={1.5} alignItems="stretch">
       <Grid size={{ xs: 12, lg: 6 }}>
@@ -102,8 +103,9 @@ export function DashboardCards({
                   Distribuicao das ocorrencias por status.
                 </Typography>
               </Box>
+              <PeriodSelector value={statusPeriod} onChange={setStatusPeriod} />
               <Box sx={{ flex: 1, display: "grid", alignItems: "center" }}>
-                <StatusPieChart slices={statusDistribution} />
+                <StatusPieChart slices={periods[statusPeriod].statusDistribution} />
               </Box>
             </Stack>
           </CardContent>
@@ -120,8 +122,9 @@ export function DashboardCards({
                   Tempo medio de resolucao das ocorrencias fechadas por denuncia, solicitacao e reclamacao.
                 </Typography>
               </Box>
+              <PeriodSelector value={mttrPeriod} onChange={setMttrPeriod} />
 
-              <MttrColumnChart items={mttrByCategory} />
+              <MttrColumnChart items={periods[mttrPeriod].mttrByCategory} />
             </Stack>
           </CardContent>
         </Card>
@@ -137,8 +140,9 @@ export function DashboardCards({
                   Relacao percentual entre denuncia, solicitacao e reclamacao.
                 </Typography>
               </Box>
+              <PeriodSelector value={categoryPeriod} onChange={setCategoryPeriod} />
               <Stack direction="row" spacing={1.25} alignItems="flex-end" sx={{ minHeight: 150 }}>
-                {categoryDistribution.map((item) => (
+                {periods[categoryPeriod].categoryDistribution.map((item) => (
                   <Stack key={item.category} spacing={1} alignItems="center" sx={{ flex: 1, minWidth: 0 }}>
                     <Typography variant="caption" color="text.secondary">
                       {item.percentage.toFixed(1)}%
@@ -168,6 +172,35 @@ export function DashboardCards({
         </Card>
       </Grid>
     </Grid>
+  );
+}
+
+
+function PeriodSelector({
+  value,
+  onChange
+}: {
+  value: DashboardPeriodKey;
+  onChange: (value: DashboardPeriodKey) => void;
+}) {
+  return (
+    <Stack alignItems="center">
+      <ToggleButtonGroup
+        exclusive
+        size="small"
+        value={value}
+        onChange={(_event, nextValue: DashboardPeriodKey | null) => {
+          if (nextValue) {
+            onChange(nextValue);
+          }
+        }}
+        sx={{ flexWrap: "wrap" }}
+      >
+        <ToggleButton value="week">Semana</ToggleButton>
+        <ToggleButton value="month">Mes</ToggleButton>
+        <ToggleButton value="year">Ano</ToggleButton>
+      </ToggleButtonGroup>
+    </Stack>
   );
 }
 

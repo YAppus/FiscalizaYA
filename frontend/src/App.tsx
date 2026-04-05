@@ -26,7 +26,7 @@ type AppTab = "dashboard" | "occurrences";
 export default function App() {
   const { user, loading, error, message, login, logout, clearFeedback } = useAuth();
   const [tab, setTab] = useState<AppTab>("dashboard");
-  const { dashboardCounts, statusDistribution, categoryDistribution, mttrByCategory, loadDashboard } = useDashboardOverview();
+  const { dashboardCounts, periods, loadDashboard } = useDashboardOverview();
   const refreshAll = async () => {
     await Promise.all([loadDashboard(), occurrencesController.loadOccurrences()]);
   };
@@ -102,9 +102,7 @@ export default function App() {
             userName={user.full_name}
             tab={tab}
             counts={dashboardCounts}
-            statusDistribution={statusDistribution}
-            categoryDistribution={categoryDistribution}
-            mttrByCategory={mttrByCategory}
+            periods={periods}
             onSelectStatus={focusOccurrencesByStatus}
             onTabChange={setTab}
           >

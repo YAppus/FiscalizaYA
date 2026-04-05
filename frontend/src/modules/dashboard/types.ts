@@ -22,6 +22,12 @@ export type DashboardMttrCategory = {
 
 export type DashboardOverview = {
   counts: StatusCount[];
+  periods: Record<DashboardPeriodKey, DashboardPeriodMetrics>;
+};
+
+export type DashboardPeriodKey = "week" | "month" | "year";
+
+export type DashboardPeriodMetrics = {
   statusDistribution: DashboardStatusSlice[];
   categoryDistribution: DashboardCategorySlice[];
   mttrByCategory: DashboardMttrCategory[];

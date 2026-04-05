@@ -2,7 +2,7 @@ import { Card, CardContent, Grid, Tab, Tabs, Typography } from "@mui/material";
 import type { ReactNode } from "react";
 
 import { DashboardCards } from "./DashboardCards";
-import type { DashboardCategorySlice, DashboardMttrCategory, DashboardStatusSlice } from "./types";
+import type { DashboardOverview } from "./types";
 
 
 type AppTab = "dashboard" | "occurrences";
@@ -11,9 +11,7 @@ type DashboardPageProps = {
   userName: string;
   tab: AppTab;
   counts: { status: string; total: number }[];
-  statusDistribution: DashboardStatusSlice[];
-  categoryDistribution: DashboardCategorySlice[];
-  mttrByCategory: DashboardMttrCategory[];
+  periods: DashboardOverview["periods"];
   onSelectStatus: (status: string) => void;
   onTabChange: (value: AppTab) => void;
   children?: ReactNode;
@@ -24,9 +22,7 @@ export function DashboardPage({
   userName,
   tab,
   counts,
-  statusDistribution,
-  categoryDistribution,
-  mttrByCategory,
+  periods,
   onSelectStatus,
   onTabChange,
   children
@@ -72,9 +68,7 @@ export function DashboardPage({
       {tab === "dashboard" ? (
         <DashboardCards
           counts={counts}
-          statusDistribution={statusDistribution}
-          categoryDistribution={categoryDistribution}
-          mttrByCategory={mttrByCategory}
+          periods={periods}
           onSelectStatus={onSelectStatus}
         />
       ) : children}
