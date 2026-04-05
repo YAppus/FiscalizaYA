@@ -3,22 +3,26 @@ export type StatusCount = {
   total: number;
 };
 
-export type DashboardPeriodKey = "weekly" | "monthly" | "yearly";
-
 export type DashboardStatusSlice = {
   status: string;
   total: number;
   percentage: number;
 };
 
-export type DashboardSolicitationPeriod = {
-  key: DashboardPeriodKey;
-  label: string;
+export type DashboardCategorySlice = {
+  category: string;
   total: number;
-  slices: DashboardStatusSlice[];
+  percentage: number;
+};
+
+export type DashboardMttrCategory = {
+  category: string;
+  averageResolutionHours: number;
 };
 
 export type DashboardOverview = {
   counts: StatusCount[];
-  solicitationPeriods: DashboardSolicitationPeriod[];
+  statusDistribution: DashboardStatusSlice[];
+  categoryDistribution: DashboardCategorySlice[];
+  mttrByCategory: DashboardMttrCategory[];
 };

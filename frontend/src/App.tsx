@@ -11,7 +11,7 @@ import { useAuth } from "./modules/auth/AuthContext";
 import { LoginScreen } from "./modules/auth/LoginScreen";
 import { fetchDashboardOverview } from "./modules/dashboard/api";
 import { DashboardPage } from "./modules/dashboard/DashboardPage";
-import type { DashboardSolicitationPeriod } from "./modules/dashboard/types";
+import type { DashboardCategorySlice, DashboardMttrCategory, DashboardStatusSlice } from "./modules/dashboard/types";
 import { createOccurrence, deleteOccurrence, fetchCategories, fetchOccurrence, fetchOccurrences, fetchPriorities, updateOccurrence, uploadOccurrenceAttachment } from "./modules/occurrences/api";
 import { OccurrenceDialog } from "./modules/occurrences/OccurrenceDialog";
 import { OccurrenceHistory } from "./modules/occurrences/OccurrenceHistory";
@@ -44,7 +44,9 @@ export default function App() {
   const { user, loading, error, message, login, logout, clearFeedback } = useAuth();
   const [tab, setTab] = useState<AppTab>("dashboard");
   const [dashboardCounts, setDashboardCounts] = useState<{ status: string; total: number }[]>([]);
-  const [solicitationPeriods, setSolicitationPeriods] = useState<DashboardSolicitationPeriod[]>([]);
+  const [statusDistribution, setStatusDistribution] = useState<DashboardStatusSlice[]>([]);
+  const [categoryDistribution, setCategoryDistribution] = useState<DashboardCategorySlice[]>([]);
+  const [mttrByCategory, setMttrByCategory] = useState<DashboardMttrCategory[]>([]);
   const [occurrences, setOccurrences] = useState<Occurrence[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [priorities, setPriorities] = useState<Priority[]>([]);
@@ -106,7 +108,9 @@ export default function App() {
     try {
       const overview = await fetchDashboardOverview();
       setDashboardCounts(overview.counts);
-      setSolicitationPeriods(overview.solicitationPeriods);
+      setStatusDistribution(overview.statusDistribution);
+      setCategoryDistribution(overview.categoryDistribution);
+      setMttrByCategory(overview.mttrByCategory);
     } catch (nextError) {
       setOccurrenceError(extractErrorMessage(nextError, "Nao foi possivel carregar o dashboard."));
     }
@@ -280,7 +284,9 @@ export default function App() {
             userName={user.full_name}
             tab={tab}
             counts={dashboardCounts}
-            solicitationPeriods={solicitationPeriods}
+            statusDistribution={statusDistribution}
+            categoryDistribution={categoryDistribution}
+            mttrByCategory={mttrByCategory}
             onSelectStatus={focusOccurrencesByStatus}
             onTabChange={setTab}
           >

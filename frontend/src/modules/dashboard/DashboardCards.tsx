@@ -1,7 +1,6 @@
 import { Box, ButtonBase, Card, CardContent, Divider, Grid, Stack, Typography } from "@mui/material";
 
-import { DashboardCharts } from "./DashboardCharts";
-import type { DashboardSolicitationPeriod, StatusCount } from "./types";
+import type { DashboardCategorySlice, DashboardMttrCategory, DashboardStatusSlice, StatusCount } from "./types";
 
 const statusColors: Record<string, string> = {
   Aberta: "#9AA5B1",
@@ -14,25 +13,29 @@ const statusColors: Record<string, string> = {
 
 export function DashboardCards({
   counts,
-  solicitationPeriods,
+  statusDistribution,
+  categoryDistribution,
+  mttrByCategory,
   onSelectStatus
 }: {
   counts: StatusCount[];
-  solicitationPeriods: DashboardSolicitationPeriod[];
+  statusDistribution: DashboardStatusSlice[];
+  categoryDistribution: DashboardCategorySlice[];
+  mttrByCategory: DashboardMttrCategory[];
   onSelectStatus: (status: string) => void;
 }) {
   return (
-    <Grid container spacing={2.5} alignItems="stretch">
+    <Grid container spacing={1.5} alignItems="stretch">
       <Grid size={{ xs: 12, lg: 6 }}>
-        <Stack spacing={2}>
-          <Box sx={{ pl: { xs: 0, md: 1 } }}>
-            <Typography variant="h5">Dados demonstrativos</Typography>
-            <Typography color="text.secondary">
+        <Stack spacing={1.25}>
+          <Box>
+            <Typography variant="h6" sx={{ textAlign: "center" }}>Dados demonstrativos</Typography>
+            <Typography color="text.secondary" variant="body2" sx={{ textAlign: "center" }}>
               Totais atuais por status, alinhados para consulta rapida da operacao.
             </Typography>
           </Box>
 
-          <Grid container spacing={2}>
+          <Grid container spacing={1.25}>
             {counts.map((item) => (
               <Grid key={item.status} size={{ xs: 12, sm: 6, md: 4 }}>
                 <Card elevation={0} sx={{ borderRadius: 2, height: "100%" }}>
@@ -46,13 +49,13 @@ export function DashboardCards({
                       alignItems: "stretch"
                     }}
                   >
-                    <CardContent sx={{ width: "100%", minWidth: 0, px: 2.25, py: 1.75 }}>
+                    <CardContent sx={{ width: "100%", minWidth: 0, px: 1.5, py: 1.2 }}>
                       <Typography
-                        variant="h6"
+                        variant="subtitle1"
                         sx={{
                           textAlign: "center",
-                          fontSize: "1.05rem",
-                          mb: 1.25,
+                          fontSize: "0.92rem",
+                          mb: 0.8,
                           color: statusColors[item.status] ?? "text.primary"
                         }}
                       >
@@ -61,18 +64,19 @@ export function DashboardCards({
                       <Divider
                         sx={(theme) => ({
                           borderColor: theme.palette.mode === "dark" ? "rgba(0,0,0,0.9)" : "rgba(8,17,31,0.92)",
-                          borderBottomWidth: 2.5,
-                          mb: 2
+                          borderBottomWidth: 2,
+                          mb: 1.1
                         })}
                       />
-                      <Typography variant="h4" sx={{ mt: 0.5, mb: 0.5 }}>
+                      <Typography variant="h4" sx={{ mt: 0.25, mb: 0.25, fontSize: "2rem" }}>
                         {item.total}
                       </Typography>
                       <Typography
+                        variant="body2"
                         color="text.secondary"
                         sx={{
-                          maxWidth: 112,
-                          lineHeight: 1.45,
+                          maxWidth: 96,
+                          lineHeight: 1.35,
                           overflowWrap: "anywhere",
                           wordBreak: "break-word"
                         }}
@@ -89,8 +93,223 @@ export function DashboardCards({
       </Grid>
 
       <Grid size={{ xs: 12, lg: 6 }}>
-        <DashboardCharts periods={solicitationPeriods} />
+        <Card elevation={0} sx={{ borderRadius: 4, height: "100%" }}>
+          <CardContent sx={{ p: { xs: 1.5, md: 1.75 }, height: "100%" }}>
+            <Stack spacing={1.25} sx={{ height: "100%" }}>
+              <Box>
+                <Typography variant="h6" sx={{ textAlign: "center" }}>Grafico de ocorrencias</Typography>
+                <Typography color="text.secondary" variant="body2" sx={{ textAlign: "center" }}>
+                  Distribuicao das ocorrencias por status.
+                </Typography>
+              </Box>
+              <Box sx={{ flex: 1, display: "grid", alignItems: "center" }}>
+                <StatusPieChart slices={statusDistribution} />
+              </Box>
+            </Stack>
+          </CardContent>
+        </Card>
+      </Grid>
+
+      <Grid size={{ xs: 12, lg: 6 }}>
+        <Card elevation={0} sx={{ borderRadius: 4, height: "100%" }}>
+          <CardContent sx={{ p: { xs: 1.5, md: 1.75 }, height: "100%" }}>
+            <Stack spacing={1.5}>
+              <Box>
+                <Typography variant="h6" sx={{ textAlign: "center" }}>MTTR por categoria</Typography>
+                <Typography color="text.secondary" variant="body2" sx={{ textAlign: "center" }}>
+                  Tempo medio de resolucao das ocorrencias fechadas por denuncia, solicitacao e reclamacao.
+                </Typography>
+              </Box>
+
+              <MttrColumnChart items={mttrByCategory} />
+            </Stack>
+          </CardContent>
+        </Card>
+      </Grid>
+
+      <Grid size={{ xs: 12, lg: 6 }}>
+        <Card elevation={0} sx={{ borderRadius: 4, height: "100%" }}>
+          <CardContent sx={{ p: { xs: 1.5, md: 1.75 }, height: "100%" }}>
+            <Stack spacing={1.5}>
+              <Box>
+                <Typography variant="h6" sx={{ textAlign: "center" }}>Ocorrencias por categoria</Typography>
+                <Typography color="text.secondary" variant="body2" sx={{ textAlign: "center" }}>
+                  Relacao percentual entre denuncia, solicitacao e reclamacao.
+                </Typography>
+              </Box>
+              <Stack direction="row" spacing={1.25} alignItems="flex-end" sx={{ minHeight: 150 }}>
+                {categoryDistribution.map((item) => (
+                  <Stack key={item.category} spacing={1} alignItems="center" sx={{ flex: 1, minWidth: 0 }}>
+                    <Typography variant="caption" color="text.secondary">
+                      {item.percentage.toFixed(1)}%
+                    </Typography>
+                    <Box
+                      sx={{
+                        width: "100%",
+                        maxWidth: 48,
+                        minHeight: 12,
+                        height: `${Math.max(item.percentage * 1.2, 12)}px`,
+                        borderRadius: "12px 12px 4px 4px",
+                        background: "#0b5fff",
+                        transition: "height 220ms ease"
+                      }}
+                    />
+                    <Typography variant="caption" sx={{ textAlign: "center" }}>
+                      {item.category}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {item.total} ocorrencias
+                    </Typography>
+                  </Stack>
+                ))}
+              </Stack>
+            </Stack>
+          </CardContent>
+        </Card>
       </Grid>
     </Grid>
   );
+}
+
+
+function StatusPieChart({ slices }: { slices: DashboardStatusSlice[] }) {
+  const total = slices.reduce((sum, item) => sum + item.total, 0);
+  const pieBackground = buildConicGradient(slices);
+
+  return (
+    <Stack
+      direction={{ xs: "column", md: "row" }}
+      spacing={2}
+      alignItems="center"
+      justifyContent="space-between"
+      sx={{ width: "100%" }}
+    >
+      <Stack spacing={1.1} sx={{ width: { xs: "100%", md: "48%" } }}>
+        {slices.map((slice) => (
+          <Stack key={slice.status} direction="row" justifyContent="space-between" alignItems="center" spacing={2}>
+            <Stack direction="row" spacing={1} alignItems="center">
+              <Box
+                sx={{
+                  width: 12,
+                  height: 12,
+                  borderRadius: "50%",
+                  bgcolor: statusColors[slice.status] ?? "#9AA5B1"
+                }}
+              />
+              <Typography variant="body2">{slice.status}</Typography>
+            </Stack>
+            <Typography variant="body2" color="text.secondary">
+              {slice.total} | {slice.percentage.toFixed(1)}%
+            </Typography>
+          </Stack>
+        ))}
+      </Stack>
+
+      <Box
+        sx={{
+          width: 180,
+          height: 180,
+          borderRadius: "50%",
+          background: pieBackground,
+          position: "relative",
+          flexShrink: 0
+        }}
+      >
+        <Box
+          sx={{
+            position: "absolute",
+            inset: 26,
+            borderRadius: "50%",
+            bgcolor: "background.paper",
+            display: "grid",
+            placeItems: "center",
+            textAlign: "center",
+            px: 2
+          }}
+        >
+          <Box>
+            <Typography variant="h5">{total}</Typography>
+            <Typography variant="caption" color="text.secondary">
+              ocorrencias
+            </Typography>
+          </Box>
+        </Box>
+      </Box>
+    </Stack>
+  );
+}
+
+
+function buildConicGradient(slices: DashboardStatusSlice[]) {
+  const nonZeroSlices = slices.filter((slice) => slice.percentage > 0);
+  if (!nonZeroSlices.length) {
+    return "conic-gradient(#E7EDF5 0 100%)";
+  }
+
+  let current = 0;
+  const stops = nonZeroSlices.map((slice) => {
+    const next = current + slice.percentage;
+    const stop = `${statusColors[slice.status] ?? "#9AA5B1"} ${current}% ${next}%`;
+    current = next;
+    return stop;
+  });
+
+  if (current < 100) {
+    stops.push(`#E7EDF5 ${current}% 100%`);
+  }
+
+  return `conic-gradient(${stops.join(", ")})`;
+}
+
+
+function MttrColumnChart({ items }: { items: DashboardMttrCategory[] }) {
+  const maxHours = Math.max(...items.map((item) => item.averageResolutionHours), 0);
+  const chartTop = maxHours + 5;
+
+  return (
+    <Stack spacing={1.25}>
+      <Typography variant="caption" color="text.secondary" sx={{ textAlign: "right" }}>
+        Escala maxima: {formatHours(chartTop)}
+      </Typography>
+      <Stack direction="row" spacing={1.5} alignItems="flex-end" sx={{ minHeight: 150 }}>
+        {items.map((item) => {
+          const ratio = chartTop > 0 ? item.averageResolutionHours / chartTop : 0;
+          return (
+            <Stack key={item.category} spacing={0.7} alignItems="center" sx={{ flex: 1, minWidth: 0 }}>
+              <Typography variant="caption" color="text.secondary">
+                {formatHours(item.averageResolutionHours)}
+              </Typography>
+              <Box
+                sx={{
+                  width: "100%",
+                  maxWidth: 42,
+                  minHeight: 12,
+                  height: `${Math.max(ratio * 110, 12)}px`,
+                  borderRadius: "10px 10px 4px 4px",
+                  background: "#0b5fff",
+                  transition: "height 220ms ease"
+                }}
+              />
+              <Typography variant="caption" sx={{ textAlign: "center" }}>
+                {item.category}
+              </Typography>
+            </Stack>
+          );
+        })}
+      </Stack>
+    </Stack>
+  );
+}
+
+
+function formatHours(hours: number) {
+  if (!hours) {
+    return "0 h";
+  }
+
+  if (hours >= 24) {
+    return `${(hours / 24).toFixed(1)} dias`;
+  }
+
+  return `${hours.toFixed(1)} h`;
 }
